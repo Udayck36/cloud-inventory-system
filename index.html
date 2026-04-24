@@ -65,17 +65,45 @@
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-red">⚠️</div>
+                            <div class="stat-icon bg-warning" style="background: #fef3c7; color: #d97706;">⚠️</div>
                             <div class="stat-details">
                                 <h3>Low Stock Items</h3>
                                 <p id="stat-low-stock">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
+                            <div class="stat-icon bg-red" style="background: #fee2e2; color: #dc2626;">🚨</div>
+                            <div class="stat-details">
+                                <h3>Critical Stock</h3>
+                                <p id="stat-critical-stock">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: #7f1d1d; color: #fecaca;">⛔</div>
+                            <div class="stat-details">
+                                <h3>Out of Stock</h3>
+                                <p id="stat-out-of-stock">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
                             <div class="stat-icon bg-purple">💰</div>
                             <div class="stat-details">
                                 <h3>Total Sales Today</h3>
-                                <p id="stat-sales-today">$0.00</p>
+                                <p id="stat-sales-today">₹0.00</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-warning" style="background: #fef3c7; color: #d97706;">⏳</div>
+                            <div class="stat-details">
+                                <h3>Near Expiry (30d)</h3>
+                                <p id="stat-near-expiry">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-red">❌</div>
+                            <div class="stat-details">
+                                <h3>Expired Items</h3>
+                                <p id="stat-expired">0</p>
                             </div>
                         </div>
                     </div>
@@ -121,15 +149,18 @@
                                             <th>SKU</th>
                                             <th>Product Name</th>
                                             <th>Category</th>
-                                            <th>Price</th>
+                                            <th>Price (₹)</th>
                                             <th>Quantity</th>
+                                            <th>MFG Date</th>
+                                            <th>Expiry Date</th>
+                                            <th>Expiry Status</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody id="inventory-tbody">
                                         <tr>
-                                            <td colspan="7" class="text-center empty-state">Loading inventory...</td>
+                                            <td colspan="10" class="text-center empty-state">Loading inventory...</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -168,12 +199,22 @@
                                 </div>
                                 <div class="form-grid">
                                     <div class="form-group">
-                                        <label>Price ($)</label>
+                                        <label>Price (₹)</label>
                                         <input type="number" step="0.01" id="prod-price" class="form-control" required placeholder="0.00">
                                     </div>
                                     <div class="form-group">
                                         <label>Initial Quantity</label>
                                         <input type="number" id="prod-qty" class="form-control" required placeholder="0">
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Manufacture Date</label>
+                                        <input type="date" id="prod-mfg-date" class="form-control" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Expiry Date</label>
+                                        <input type="date" id="prod-expiry-date" class="form-control" required>
                                     </div>
                                 </div>
                                 <div class="form-group">

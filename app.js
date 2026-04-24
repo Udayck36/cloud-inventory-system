@@ -10,7 +10,34 @@ const pageTitle = document.getElementById('page-title');
 const statTotalProducts = document.getElementById('stat-total-products');
 const statTotalStock = document.getElementById('stat-total-stock');
 const statLowStock = document.getElementById('stat-low-stock');
+const statCriticalStock = document.getElementById('stat-critical-stock');
+const statOutOfStock = document.getElementById('stat-out-of-stock');
 const statSalesToday = document.getElementById('stat-sales-today');
+const statNearExpiry = document.getElementById('stat-near-expiry');
+const statExpired = document.getElementById('stat-expired');
+
+// Formatting
+const formatINR = (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value);
+
+function getExpiryStatus(expiryDateStr) {
+    if (!expiryDateStr) return { status: 'Unknown', badge: 'badge-warning', daysLeft: 999 };
+    const expDate = new Date(expiryDateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = expDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { status: 'Expired', badge: 'badge-danger', daysLeft: diffDays };
+    if (diffDays <= 30) return { status: 'Expiring Soon', badge: 'badge-warning', daysLeft: diffDays };
+    return { status: 'Safe', badge: 'badge-success', daysLeft: diffDays };
+}
+
+function getStockLevel(qty, lowLimit) {
+    if (qty <= 0) return 'OUT_OF_STOCK';
+    if (qty <= 5) return 'CRITICAL';
+    if (qty <= lowLimit) return 'LOW';
+    return 'IN_STOCK';
+}
 
 // Forms
 const addProductForm = document.getElementById('add-product-form');
@@ -49,14 +76,14 @@ function showToast(message, type = 'success') {
     const toastContainer = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
+
     let icon = '✅';
     if (type === 'error') icon = '❌';
     if (type === 'warning') icon = '⚠️';
-    
+
     toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
     toastContainer.appendChild(toast);
-    
+
     setTimeout(() => {
         toast.classList.add('fade-out');
         setTimeout(() => toast.remove(), 300);
@@ -69,20 +96,20 @@ function initNavigation() {
         link.addEventListener('click', (e) => {
             e.preventDefault();
             const targetId = link.getAttribute('data-target');
-            
+
             // Update Active Link
             navLinks.forEach(l => l.classList.remove('active'));
             link.classList.add('active');
-            
+
             // Update Page Title
             pageTitle.textContent = link.textContent.replace(/[^\x00-\x7F]/g, "").trim(); // Remove emoji
-            
+
             // Show Target Section
             pageSections.forEach(sec => sec.classList.add('hidden'));
             document.getElementById(targetId).classList.remove('hidden');
 
             // Refresh chart if navigating to analytics
-            if(targetId === 'analytics-section' && salesChart) {
+            if (targetId === 'analytics-section' && salesChart) {
                 salesChart.update();
             }
         });
@@ -98,7 +125,7 @@ function initRealtimeListeners() {
         renderInventoryTable();
         updateDashboardStats();
         updateSaleDropdown();
-        generateLowStockAlerts();
+        generateAlerts();
     }, (error) => {
         console.error("Error listening to products:", error);
         showToast("Error connecting to database", "error");
@@ -137,6 +164,8 @@ function initForms() {
             price: parseFloat(document.getElementById('prod-price').value),
             quantity: parseInt(document.getElementById('prod-qty').value),
             lowStockLimit: parseInt(document.getElementById('prod-threshold').value),
+            manufactureDate: document.getElementById('prod-mfg-date').value,
+            expiryDate: document.getElementById('prod-expiry-date').value,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         };
@@ -171,19 +200,34 @@ function initForms() {
     recordSaleForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = document.getElementById('btn-record-sale');
-        
+
         const productId = saleProductDropdown.value;
         const qtySold = parseInt(saleQtyInput.value);
-        
-        if(!productId) {
+
+        if (!productId) {
             showToast("Please select a product.", "warning");
             return;
         }
 
         const product = products.find(p => p.id === productId);
-        if(!product || product.quantity < qtySold) {
+        if (!product || product.quantity < qtySold) {
             showToast("Insufficient stock for this sale.", "error");
             return;
+        }
+
+        const expiryInfo = getExpiryStatus(product.expiryDate);
+        if (expiryInfo.status === 'Expired') {
+            showToast("Cannot sell expired product.", "error");
+            return;
+        }
+
+        const currentLvl = getStockLevel(product.quantity, product.lowStockLimit);
+        const postSaleQty = product.quantity - qtySold;
+        const postSaleLvl = getStockLevel(postSaleQty, product.lowStockLimit);
+
+        if (postSaleLvl !== 'IN_STOCK' && postSaleLvl !== currentLvl) {
+            let lvlName = postSaleLvl.replace(/_/g, ' ');
+            showToast(`Sale caused ${product.productName} to enter ${lvlName} level`, "warning");
         }
 
         btn.disabled = true;
@@ -228,7 +272,7 @@ function initForms() {
 
 function initModals() {
     closeEditModalBtn.addEventListener('click', () => editModal.classList.add('hidden'));
-    
+
     // Close modal if clicked outside
     window.addEventListener('click', (e) => {
         if (e.target === editModal) {
@@ -267,10 +311,10 @@ function initModals() {
 
 function renderInventoryTable(searchTerm = "") {
     inventoryTbody.innerHTML = "";
-    
+
     const term = searchTerm.toLowerCase();
-    const filteredProducts = products.filter(p => 
-        p.productName.toLowerCase().includes(term) || 
+    const filteredProducts = products.filter(p =>
+        p.productName.toLowerCase().includes(term) ||
         p.sku.toLowerCase().includes(term) ||
         p.category.toLowerCase().includes(term)
     );
@@ -282,20 +326,29 @@ function renderInventoryTable(searchTerm = "") {
 
     filteredProducts.forEach(product => {
         const tr = document.createElement('tr');
-        
+
+        const stockLevel = getStockLevel(product.quantity, product.lowStockLimit);
         let statusBadge = `<span class="badge badge-success">In Stock</span>`;
-        if (product.quantity <= 0) {
-            statusBadge = `<span class="badge badge-danger">Out of Stock</span>`;
-        } else if (product.quantity <= product.lowStockLimit) {
+        if (stockLevel === 'OUT_OF_STOCK') {
+            statusBadge = `<span class="badge badge-out-of-stock">Out of Stock</span>`;
+        } else if (stockLevel === 'CRITICAL') {
+            statusBadge = `<span class="badge badge-critical">Critical</span>`;
+        } else if (stockLevel === 'LOW') {
             statusBadge = `<span class="badge badge-warning">Low Stock</span>`;
         }
+
+        const expiryInfo = getExpiryStatus(product.expiryDate);
+        let expiryBadge = `<span class="badge ${expiryInfo.badge}">${expiryInfo.status}</span>`;
 
         tr.innerHTML = `
             <td><strong>${product.sku}</strong></td>
             <td>${product.productName}</td>
             <td>${product.category}</td>
-            <td>$${product.price.toFixed(2)}</td>
+            <td>${formatINR(product.price)}</td>
             <td><strong>${product.quantity}</strong></td>
+            <td>${product.manufactureDate || '-'}</td>
+            <td>${product.expiryDate || '-'}</td>
+            <td>${expiryBadge}</td>
             <td>${statusBadge}</td>
             <td class="table-actions">
                 <button class="btn btn-sm btn-primary btn-edit" data-id="${product.id}" data-qty="${product.quantity}">Edit Stock</button>
@@ -319,7 +372,7 @@ function renderInventoryTable(searchTerm = "") {
     document.querySelectorAll('.btn-delete').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             const id = e.target.getAttribute('data-id');
-            if(confirm("Are you sure you want to delete this product?")) {
+            if (confirm("Are you sure you want to delete this product?")) {
                 try {
                     await deleteDoc(doc(db, "products", id));
                     showToast("Product deleted.");
@@ -334,74 +387,132 @@ function renderInventoryTable(searchTerm = "") {
 function updateSaleDropdown() {
     // Save current selection if exists
     const currentVal = saleProductDropdown.value;
-    
+
     saleProductDropdown.innerHTML = `<option value="" disabled selected>Select Product...</option>`;
     products.forEach(p => {
-        if(p.quantity > 0) {
+        if (p.quantity > 0) {
             const option = document.createElement('option');
             option.value = p.id;
-            option.textContent = `${p.productName} (Stock: ${p.quantity}) - $${p.price.toFixed(2)}`;
+            option.textContent = `${p.productName} (Stock: ${p.quantity}) - ${formatINR(p.price)}`;
             saleProductDropdown.appendChild(option);
         }
     });
 
-    if(currentVal && products.find(p => p.id === currentVal && p.quantity > 0)) {
+    if (currentVal && products.find(p => p.id === currentVal && p.quantity > 0)) {
         saleProductDropdown.value = currentVal;
     }
 }
 
 function updateDashboardStats() {
     statTotalProducts.textContent = products.length;
-    
+
     const totalStock = products.reduce((sum, p) => sum + p.quantity, 0);
     statTotalStock.textContent = totalStock;
 
-    const lowStockCount = products.filter(p => p.quantity > 0 && p.quantity <= p.lowStockLimit).length;
-    statLowStock.textContent = lowStockCount;
+    let lowCount = 0;
+    let criticalCount = 0;
+    let outOfStockCount = 0;
+
+    products.forEach(p => {
+        const level = getStockLevel(p.quantity, p.lowStockLimit);
+        if (level === 'LOW') lowCount++;
+        if (level === 'CRITICAL') criticalCount++;
+        if (level === 'OUT_OF_STOCK') outOfStockCount++;
+    });
+
+    if (statLowStock) statLowStock.textContent = lowCount;
+    if (statCriticalStock) statCriticalStock.textContent = criticalCount;
+    if (statOutOfStock) statOutOfStock.textContent = outOfStockCount;
 
     // Calculate today's sales
     const today = new Date();
-    today.setHours(0,0,0,0);
-    
+    today.setHours(0, 0, 0, 0);
+
     let dailySalesTotal = 0;
     sales.forEach(sale => {
-        if(sale.soldAt && sale.soldAt.toDate) {
+        if (sale.soldAt && sale.soldAt.toDate) {
             const saleDate = sale.soldAt.toDate();
-            if(saleDate >= today) {
+            if (saleDate >= today) {
                 dailySalesTotal += sale.totalAmount;
             }
         }
     });
-    statSalesToday.textContent = `$${dailySalesTotal.toFixed(2)}`;
+    statSalesToday.textContent = formatINR(dailySalesTotal);
+
+    let nearExpiryCount = 0;
+    let expiredCount = 0;
+    products.forEach(p => {
+        if (p.quantity > 0) {
+            const exp = getExpiryStatus(p.expiryDate);
+            if (exp.status === 'Expiring Soon') nearExpiryCount++;
+            if (exp.status === 'Expired') expiredCount++;
+        }
+    });
+    if (statNearExpiry) statNearExpiry.textContent = nearExpiryCount;
+    if (statExpired) statExpired.textContent = expiredCount;
 }
 
-async function generateLowStockAlerts() {
-    for(const p of products) {
-        if(p.quantity <= p.lowStockLimit && p.quantity > 0) {
-            // Check if alert already exists recently to prevent spam
-            // For simplicity in this architecture, we will check if an unresolved alert exists
-            const existingAlert = alerts.find(a => a.productId === p.id && !a.resolved);
-            if(!existingAlert) {
+async function generateAlerts() {
+    for (const p of products) {
+        
+        // 1. Stock Escalation Alerts
+        const currentLevel = getStockLevel(p.quantity, p.lowStockLimit);
+        const activeStockAlerts = alerts.filter(a => a.productId === p.id && !a.resolved && ['LOW', 'CRITICAL', 'OUT_OF_STOCK'].includes(a.alertLevel));
+        
+        if (activeStockAlerts.length > 0) {
+            const currentAlertLevel = activeStockAlerts[0].alertLevel;
+            if (currentAlertLevel !== currentLevel) {
+                // Escalate or resolve
+                for (const a of activeStockAlerts) {
+                    await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: serverTimestamp() });
+                }
+            }
+        }
+
+        const isAlertable = ['LOW', 'CRITICAL', 'OUT_OF_STOCK'].includes(currentLevel);
+        const hasExistingAlertForCurrentLevel = alerts.some(a => a.productId === p.id && !a.resolved && a.alertLevel === currentLevel);
+
+        if (isAlertable && !hasExistingAlertForCurrentLevel) {
+            let msg = '';
+            if (currentLevel === 'OUT_OF_STOCK') msg = `Out of Stock: ${p.productName} unavailable`;
+            else if (currentLevel === 'CRITICAL') msg = `Critical Stock: ${p.productName} only ${p.quantity} units remaining`;
+            else if (currentLevel === 'LOW') msg = `Low Stock: ${p.productName} has ${p.quantity} units remaining`;
+
+            await addDoc(collection(db, "alerts"), {
+                productId: p.id,
+                productName: p.productName,
+                alertType: 'STOCK_ALERT',
+                alertLevel: currentLevel,
+                lastAlertQty: p.quantity,
+                message: msg,
+                createdAt: serverTimestamp(),
+                resolved: false
+            });
+            showToast(msg, "warning");
+        }
+
+        // 2. Expiry Alert
+        const expInfo = getExpiryStatus(p.expiryDate);
+        if (expInfo.status === 'Expiring Soon' || expInfo.status === 'Expired') {
+            const existingExpiry = alerts.find(a => a.productId === p.id && a.alertType === 'EXPIRY_WARNING' && !a.resolved);
+            if (!existingExpiry) {
+                let msg = expInfo.status === 'Expired'
+                    ? `${p.productName} has expired!`
+                    : `${p.productName} expires in ${expInfo.daysLeft} days.`;
                 await addDoc(collection(db, "alerts"), {
                     productId: p.id,
                     productName: p.productName,
-                    alertType: 'LOW_STOCK',
-                    message: `${p.productName} is low on stock (${p.quantity} remaining).`,
+                    alertType: 'EXPIRY_WARNING',
+                    message: msg,
                     createdAt: serverTimestamp(),
                     resolved: false
                 });
-                showToast(`${p.productName} stock is low!`, "warning");
+                showToast(`Expiry Alert: ${p.productName}`, "warning");
             }
-        }
-        
-        // Auto resolve alert if stock goes up
-        if(p.quantity > p.lowStockLimit) {
-            const activeAlerts = alerts.filter(a => a.productId === p.id && !a.resolved);
-            for(const a of activeAlerts) {
-                await updateDoc(doc(db, "alerts", a.id), {
-                    resolved: true,
-                    updatedAt: serverTimestamp()
-                });
+        } else {
+            const activeExpiry = alerts.filter(a => a.productId === p.id && a.alertType === 'EXPIRY_WARNING' && !a.resolved);
+            for (const a of activeExpiry) {
+                await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: serverTimestamp() });
             }
         }
     }
@@ -411,17 +522,25 @@ function renderAlertsFeed() {
     alertsFeed.innerHTML = "";
     // Only show unresolved
     const activeAlerts = alerts.filter(a => !a.resolved).slice(0, 5);
-    
-    if(activeAlerts.length === 0) {
+
+    if (activeAlerts.length === 0) {
         alertsFeed.innerHTML = `<li class="empty-state">All good! No active alerts.</li>`;
         return;
     }
 
     activeAlerts.forEach(a => {
-        const timeStr = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now';
+        const timeStr = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
+        
+        let icon = '⚠️';
+        let style = '';
+        if (a.alertLevel === 'CRITICAL') { icon = '🚨'; style = 'color: #dc2626; font-weight: bold;'; }
+        else if (a.alertLevel === 'OUT_OF_STOCK') { icon = '⛔'; style = 'color: #7f1d1d; font-weight: bold;'; }
+        else if (a.alertType === 'EXPIRY_WARNING') { icon = '⏳'; style = 'color: #d97706;'; }
+        else if (a.alertLevel === 'LOW') { icon = '⚠️'; style = 'color: #d97706;'; }
+
         alertsFeed.innerHTML += `
             <li>
-                <span>⚠️ ${a.message}</span>
+                <span style="${style}">${icon} ${a.message}</span>
                 <span class="activity-time">${timeStr}</span>
             </li>
         `;
@@ -431,17 +550,17 @@ function renderAlertsFeed() {
 function renderSalesFeed() {
     salesFeed.innerHTML = "";
     const recentSales = sales.slice(0, 5); // Take top 5 recent (since it's ordered desc)
-    
-    if(recentSales.length === 0) {
+
+    if (recentSales.length === 0) {
         salesFeed.innerHTML = `<li class="empty-state">No recent sales.</li>`;
         return;
     }
 
     recentSales.forEach(s => {
-        const timeStr = s.soldAt && s.soldAt.toDate ? s.soldAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Just now';
+        const timeStr = s.soldAt && s.soldAt.toDate ? s.soldAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
         salesFeed.innerHTML += `
             <li>
-                <span>🛒 Sold ${s.quantitySold}x ${s.productName} for <strong>$${s.totalAmount.toFixed(2)}</strong></span>
+                <span>🛒 Sold ${s.quantitySold}x ${s.productName} for <strong>${formatINR(s.totalAmount)}</strong></span>
                 <span class="activity-time">${timeStr}</span>
             </li>
         `;
@@ -450,11 +569,11 @@ function renderSalesFeed() {
 
 function renderAnalytics() {
     const ctx = document.getElementById('salesChart').getContext('2d');
-    
+
     // Aggregate sales by product
     const productSalesMap = {};
     sales.forEach(sale => {
-        if(!productSalesMap[sale.productName]) {
+        if (!productSalesMap[sale.productName]) {
             productSalesMap[sale.productName] = 0;
         }
         productSalesMap[sale.productName] += sale.quantitySold;
@@ -464,7 +583,7 @@ function renderAnalytics() {
     const sortedProducts = Object.keys(productSalesMap).sort((a, b) => productSalesMap[b] - productSalesMap[a]).slice(0, 5);
     const dataValues = sortedProducts.map(p => productSalesMap[p]);
 
-    if(salesChart) {
+    if (salesChart) {
         salesChart.destroy();
     }
 

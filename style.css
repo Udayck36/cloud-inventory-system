@@ -330,6 +330,8 @@ body {
 .badge-success { background: #d1fae5; color: #065f46; }
 .badge-danger { background: #fee2e2; color: #991b1b; }
 .badge-warning { background: #fef3c7; color: #92400e; }
+.badge-critical { background: #fee2e2; color: #dc2626; font-weight: 600; }
+.badge-out-of-stock { background: #7f1d1d; color: #fecaca; font-weight: 700; }
 
 /* Feed */
 .activity-list {
