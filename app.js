@@ -71,6 +71,7 @@ let currentChartType = 'bar';
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     initNavigation();
     initNetworkStatus();
     initRealtimeListeners();
@@ -94,13 +95,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Global Chart Defaults
-    Chart.defaults.font.family = "'Inter', sans-serif";
-    Chart.defaults.color = "#64748b";
-    Chart.defaults.scale.grid.color = "#f1f5f9";
-    Chart.defaults.plugins.tooltip.backgroundColor = "#1e293b";
+    Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
     Chart.defaults.plugins.tooltip.padding = 12;
     Chart.defaults.plugins.tooltip.cornerRadius = 8;
 });
+
+// --- Theme System ---
+function initTheme() {
+    const themeToggle = document.getElementById('theme-toggle');
+    const root = document.documentElement;
+    const savedTheme = localStorage.getItem('theme');
+    
+    let currentTheme = 'light';
+    if (savedTheme) {
+        currentTheme = savedTheme;
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        currentTheme = 'dark';
+    }
+    
+    applyTheme(currentTheme);
+
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            currentTheme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', currentTheme);
+            applyTheme(currentTheme);
+        });
+    }
+}
+
+function applyTheme(theme) {
+    const root = document.documentElement;
+    const themeToggle = document.getElementById('theme-toggle');
+    
+    if (theme === 'dark') {
+        root.setAttribute('data-theme', 'dark');
+        if (themeToggle) themeToggle.innerHTML = '<i class="ph ph-sun"></i>';
+        updateChartTheme('dark');
+    } else {
+        root.removeAttribute('data-theme');
+        if (themeToggle) themeToggle.innerHTML = '<i class="ph ph-moon"></i>';
+        updateChartTheme('light');
+    }
+}
+
+function updateChartTheme(theme) {
+    const isDark = theme === 'dark';
+    Chart.defaults.color = isDark ? "#94a3b8" : "#64748b";
+    Chart.defaults.scale.grid.color = isDark ? "#334155" : "#f1f5f9";
+    Chart.defaults.plugins.tooltip.backgroundColor = isDark ? "#0f172a" : "#1e293b";
+    
+    if (salesChart) salesChart.update();
+    if (profitLossChart) profitLossChart.update();
+}
 
 // --- Toast System ---
 function showToast(message, type = 'success') {
@@ -367,7 +414,7 @@ function initForms() {
             }
 
             // 2. Reduce Product Stock
-            const prodRef = doc(db, "products", product.id);
+            const prodRef = doc(db,"products", product.id);
             await updateDoc(prodRef, {
                 quantity: product.quantity - qtySold,
                 updatedAt: new Date()
@@ -418,7 +465,7 @@ function initModals() {
         btn.textContent = "Updating...";
 
         try {
-            await updateDoc(doc(db, "products", id), {
+            await updateDoc(doc(db,"products", id), {
                 quantity: newQty,
                 updatedAt: serverTimestamp()
             });
@@ -516,7 +563,7 @@ function renderInventoryTable(searchTerm = "") {
             const id = e.target.getAttribute('data-id');
             if (confirm("Are you sure you want to delete this product?")) {
                 try {
-                    await deleteDoc(doc(db, "products", id));
+                    await deleteDoc(doc(db,"products", id));
                     showToast("Product deleted.");
                 } catch (error) {
                     showToast("Failed to delete product.", "error");
@@ -631,7 +678,7 @@ async function generateAlerts() {
                     shouldAlert = true;
                     // Resolve ALL old stock alerts for this product to prevent duplicates
                     for (const a of existingStockAlerts) {
-                        await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: new Date() });
+                        await updateDoc(doc(db,"alerts", a.id), { resolved: true, updatedAt: new Date() });
                     }
                 }
             }
@@ -639,7 +686,7 @@ async function generateAlerts() {
             // Not alertable (IN_STOCK), but has alerts? Resolve them!
             if (existingStockAlerts.length > 0) {
                 for (const a of existingStockAlerts) {
-                    await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: new Date() });
+                    await updateDoc(doc(db,"alerts", a.id), { resolved: true, updatedAt: new Date() });
                 }
             }
         }
@@ -684,7 +731,7 @@ async function generateAlerts() {
         } else {
             const activeExpiry = alerts.filter(a => a.productId === p.id && a.alertType === 'EXPIRY_WARNING' && !a.resolved);
             for (const a of activeExpiry) {
-                await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: new Date() });
+                await updateDoc(doc(db,"alerts", a.id), { resolved: true, updatedAt: new Date() });
             }
         }
     }
@@ -695,7 +742,7 @@ alertsFeed.addEventListener('click', async (e) => {
     if (e.target.classList.contains('btn-clear-alert')) {
         const alertId = e.target.getAttribute('data-id');
         try {
-            await updateDoc(doc(db, "alerts", alertId), { 
+            await updateDoc(doc(db,"alerts", alertId), { 
                 resolved: true, 
                 updatedAt: serverTimestamp() 
             });
@@ -1005,7 +1052,7 @@ function renderCreditDashboard() {
             const saleId = e.target.getAttribute('data-id');
             if (confirm("Mark this credit sale as fully paid?")) {
                 try {
-                    await updateDoc(doc(db, "sales", saleId), {
+                    await updateDoc(doc(db, "sales",  saleId), {
                         paymentStatus: 'Paid',
                         dueAmount: 0
                     });
