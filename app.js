@@ -15,6 +15,10 @@ const statOutOfStock = document.getElementById('stat-out-of-stock');
 const statSalesToday = document.getElementById('stat-sales-today');
 const statNearExpiry = document.getElementById('stat-near-expiry');
 const statExpired = document.getElementById('stat-expired');
+const statTotalRevenue = document.getElementById('stat-total-revenue');
+const statTotalCost = document.getElementById('stat-total-cost');
+const statTotalProfit = document.getElementById('stat-total-profit');
+const statTotalLoss = document.getElementById('stat-total-loss');
 
 // Formatting
 const formatINR = (value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value);
@@ -62,6 +66,7 @@ let products = [];
 let sales = [];
 let alerts = [];
 let salesChart = null;
+let profitLossChart = null;
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -161,13 +166,14 @@ function initForms() {
             productName: document.getElementById('prod-name').value,
             sku: document.getElementById('prod-sku').value,
             category: document.getElementById('prod-category').value,
-            price: parseFloat(document.getElementById('prod-price').value),
-            quantity: parseInt(document.getElementById('prod-qty').value),
-            lowStockLimit: parseInt(document.getElementById('prod-threshold').value),
+            costPrice: parseFloat(document.getElementById('prod-cost').value) || 0,
+            price: parseFloat(document.getElementById('prod-price').value) || 0,
+            quantity: parseInt(document.getElementById('prod-qty').value) || 0,
+            lowStockLimit: parseInt(document.getElementById('prod-threshold').value) || 0,
             manufactureDate: document.getElementById('prod-mfg-date').value,
             expiryDate: document.getElementById('prod-expiry-date').value,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
+            createdAt: new Date(),
+            updatedAt: new Date()
         };
 
         try {
@@ -177,8 +183,8 @@ function initForms() {
             // Switch back to inventory
             document.querySelector('[data-target="inventory-section"]').click();
         } catch (error) {
-            console.error("Error adding product:", error);
-            showToast("Failed to add product.", "error");
+            console.error("Error adding product:", error.message || error);
+            showToast("Failed to add product. Check console.", "error");
         } finally {
             btn.disabled = false;
             btn.textContent = "Save Product";
@@ -192,8 +198,10 @@ function initForms() {
         if (product) {
             saleCurrentStock.value = product.quantity;
             saleQtyInput.max = product.quantity;
+            document.getElementById('sale-price').value = product.price;
         } else {
             saleCurrentStock.value = "-";
+            document.getElementById('sale-price').value = "";
         }
     });
 
@@ -203,6 +211,7 @@ function initForms() {
 
         const productId = saleProductDropdown.value;
         const qtySold = parseInt(saleQtyInput.value);
+        const salePrice = parseFloat(document.getElementById('sale-price').value);
 
         if (!productId) {
             showToast("Please select a product.", "warning");
@@ -212,6 +221,11 @@ function initForms() {
         const product = products.find(p => p.id === productId);
         if (!product || product.quantity < qtySold) {
             showToast("Insufficient stock for this sale.", "error");
+            return;
+        }
+
+        if (isNaN(salePrice) || salePrice < 0) {
+            showToast("Invalid sale price.", "error");
             return;
         }
 
@@ -234,22 +248,40 @@ function initForms() {
         btn.textContent = "Processing...";
 
         try {
-            // 1. Add Sale Record
+            const totalRevenue = salePrice * qtySold;
+            const totalCost = (product.costPrice || 0) * qtySold;
+            const profitLoss = totalRevenue - totalCost;
+
             const saleRecord = {
                 productId: product.id,
                 productName: product.productName,
                 quantitySold: qtySold,
-                unitPrice: product.price,
-                totalAmount: product.price * qtySold,
-                soldAt: serverTimestamp()
+                salePrice: salePrice,
+                totalRevenue: totalRevenue,
+                totalCost: totalCost,
+                profitLoss: profitLoss,
+                soldAt: new Date()
             };
             await addDoc(collection(db, "sales"), saleRecord);
+
+            if (salePrice < (product.costPrice || 0)) {
+                await addDoc(collection(db, "alerts"), {
+                    productId: product.id,
+                    productName: product.productName,
+                    alertType: 'LOSS_WARNING',
+                    alertLevel: 'WARNING',
+                    message: `Loss Warning: ${product.productName} sold below cost price.`,
+                    createdAt: new Date(),
+                    resolved: false
+                });
+                showToast(`Loss Warning: Product sold below cost price`, "warning");
+            }
 
             // 2. Reduce Product Stock
             const prodRef = doc(db, "products", product.id);
             await updateDoc(prodRef, {
                 quantity: product.quantity - qtySold,
-                updatedAt: serverTimestamp()
+                updatedAt: new Date()
             });
 
             showToast("Sale recorded successfully!");
@@ -314,9 +346,9 @@ function renderInventoryTable(searchTerm = "") {
 
     const term = searchTerm.toLowerCase();
     const filteredProducts = products.filter(p =>
-        p.productName.toLowerCase().includes(term) ||
-        p.sku.toLowerCase().includes(term) ||
-        p.category.toLowerCase().includes(term)
+        (p.productName || '').toLowerCase().includes(term) ||
+        (p.sku || '').toLowerCase().includes(term) ||
+        (p.category || '').toLowerCase().includes(term)
     );
 
     if (filteredProducts.length === 0) {
@@ -424,20 +456,35 @@ function updateDashboardStats() {
     if (statCriticalStock) statCriticalStock.textContent = criticalCount;
     if (statOutOfStock) statOutOfStock.textContent = outOfStockCount;
 
-    // Calculate today's sales
+    // Calculate today's sales and P&L
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     let dailySalesTotal = 0;
+    let totalRevenue = 0;
+    let totalCostAmt = 0;
+    let totalProfit = 0;
+    let totalLoss = 0;
+
     sales.forEach(sale => {
+        if(sale.totalRevenue) totalRevenue += sale.totalRevenue;
+        if(sale.totalCost) totalCostAmt += sale.totalCost;
+        if(sale.profitLoss > 0) totalProfit += sale.profitLoss;
+        if(sale.profitLoss < 0) totalLoss += Math.abs(sale.profitLoss);
+
         if (sale.soldAt && sale.soldAt.toDate) {
             const saleDate = sale.soldAt.toDate();
             if (saleDate >= today) {
-                dailySalesTotal += sale.totalAmount;
+                dailySalesTotal += (sale.totalRevenue || sale.totalAmount || 0);
             }
         }
     });
     statSalesToday.textContent = formatINR(dailySalesTotal);
+
+    if (statTotalRevenue) statTotalRevenue.textContent = formatINR(totalRevenue);
+    if (statTotalCost) statTotalCost.textContent = formatINR(totalCostAmt);
+    if (statTotalProfit) statTotalProfit.textContent = formatINR(totalProfit);
+    if (statTotalLoss) statTotalLoss.textContent = formatINR(totalLoss);
 
     let nearExpiryCount = 0;
     let expiredCount = 0;
@@ -457,22 +504,37 @@ async function generateAlerts() {
         
         // 1. Stock Escalation Alerts
         const currentLevel = getStockLevel(p.quantity, p.lowStockLimit);
-        const activeStockAlerts = alerts.filter(a => a.productId === p.id && !a.resolved && ['LOW', 'CRITICAL', 'OUT_OF_STOCK'].includes(a.alertLevel));
+        const isAlertable = ['LOW', 'CRITICAL', 'OUT_OF_STOCK'].includes(currentLevel);
         
-        if (activeStockAlerts.length > 0) {
-            const currentAlertLevel = activeStockAlerts[0].alertLevel;
-            if (currentAlertLevel !== currentLevel) {
-                // Escalate or resolve
-                for (const a of activeStockAlerts) {
-                    await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: serverTimestamp() });
+        // Find ANY active stock alert for this product
+        const existingStockAlerts = alerts.filter(a => a.productId === p.id && !a.resolved && ['LOW', 'CRITICAL', 'OUT_OF_STOCK'].includes(a.alertLevel));
+        
+        let shouldAlert = false;
+
+        if (isAlertable) {
+            if (existingStockAlerts.length === 0) {
+                shouldAlert = true;
+            } else {
+                // If there's an existing alert, check if the quantity has changed
+                const latestAlert = existingStockAlerts[0];
+                if (latestAlert.lastAlertQty !== p.quantity) {
+                    shouldAlert = true;
+                    // Resolve ALL old stock alerts for this product to prevent duplicates
+                    for (const a of existingStockAlerts) {
+                        await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: new Date() });
+                    }
+                }
+            }
+        } else {
+            // Not alertable (IN_STOCK), but has alerts? Resolve them!
+            if (existingStockAlerts.length > 0) {
+                for (const a of existingStockAlerts) {
+                    await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: new Date() });
                 }
             }
         }
 
-        const isAlertable = ['LOW', 'CRITICAL', 'OUT_OF_STOCK'].includes(currentLevel);
-        const hasExistingAlertForCurrentLevel = alerts.some(a => a.productId === p.id && !a.resolved && a.alertLevel === currentLevel);
-
-        if (isAlertable && !hasExistingAlertForCurrentLevel) {
+        if (shouldAlert) {
             let msg = '';
             if (currentLevel === 'OUT_OF_STOCK') msg = `Out of Stock: ${p.productName} unavailable`;
             else if (currentLevel === 'CRITICAL') msg = `Critical Stock: ${p.productName} only ${p.quantity} units remaining`;
@@ -485,7 +547,7 @@ async function generateAlerts() {
                 alertLevel: currentLevel,
                 lastAlertQty: p.quantity,
                 message: msg,
-                createdAt: serverTimestamp(),
+                createdAt: new Date(),
                 resolved: false
             });
             showToast(msg, "warning");
@@ -504,7 +566,7 @@ async function generateAlerts() {
                     productName: p.productName,
                     alertType: 'EXPIRY_WARNING',
                     message: msg,
-                    createdAt: serverTimestamp(),
+                    createdAt: new Date(),
                     resolved: false
                 });
                 showToast(`Expiry Alert: ${p.productName}`, "warning");
@@ -512,11 +574,28 @@ async function generateAlerts() {
         } else {
             const activeExpiry = alerts.filter(a => a.productId === p.id && a.alertType === 'EXPIRY_WARNING' && !a.resolved);
             for (const a of activeExpiry) {
-                await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: serverTimestamp() });
+                await updateDoc(doc(db, "alerts", a.id), { resolved: true, updatedAt: new Date() });
             }
         }
     }
 }
+
+
+alertsFeed.addEventListener('click', async (e) => {
+    if (e.target.classList.contains('btn-clear-alert')) {
+        const alertId = e.target.getAttribute('data-id');
+        try {
+            await updateDoc(doc(db, "alerts", alertId), { 
+                resolved: true, 
+                updatedAt: serverTimestamp() 
+            });
+            showToast("Alert cleared");
+        } catch(err) {
+            console.error("Error clearing alert:", err);
+            showToast("Failed to clear alert", "error");
+        }
+    }
+});
 
 function renderAlertsFeed() {
     alertsFeed.innerHTML = "";
@@ -541,7 +620,10 @@ function renderAlertsFeed() {
         alertsFeed.innerHTML += `
             <li>
                 <span style="${style}">${icon} ${a.message}</span>
-                <span class="activity-time">${timeStr}</span>
+                <div>
+                    <span class="activity-time">${timeStr}</span>
+                    <button class="btn-clear-alert" data-id="${a.id}">Clear</button>
+                </div>
             </li>
         `;
     });
@@ -558,9 +640,17 @@ function renderSalesFeed() {
 
     recentSales.forEach(s => {
         const timeStr = s.soldAt && s.soldAt.toDate ? s.soldAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
+        
+        let plString = '';
+        if (s.profitLoss > 0) plString = `<span class="text-success">Profit ${formatINR(s.profitLoss)}</span>`;
+        else if (s.profitLoss < 0) plString = `<span class="text-danger">Loss ${formatINR(Math.abs(s.profitLoss))}</span>`;
+        else if (s.profitLoss === 0) plString = `<span>Break-even</span>`;
+
+        const revenue = s.totalRevenue || s.totalAmount || 0;
+
         salesFeed.innerHTML += `
             <li>
-                <span>🛒 Sold ${s.quantitySold}x ${s.productName} for <strong>${formatINR(s.totalAmount)}</strong></span>
+                <span>🛒 Sold ${s.quantitySold}x ${s.productName} | Revenue ${formatINR(revenue)} | ${plString}</span>
                 <span class="activity-time">${timeStr}</span>
             </li>
         `;
@@ -569,17 +659,25 @@ function renderSalesFeed() {
 
 function renderAnalytics() {
     const ctx = document.getElementById('salesChart').getContext('2d');
+    const ctxPL = document.getElementById('profitLossChart');
+    if (ctxPL) {
+        ctxPL.getContext('2d');
+    }
 
     // Aggregate sales by product
     const productSalesMap = {};
+    const productProfitMap = {};
+
     sales.forEach(sale => {
         if (!productSalesMap[sale.productName]) {
             productSalesMap[sale.productName] = 0;
+            productProfitMap[sale.productName] = 0;
         }
         productSalesMap[sale.productName] += sale.quantitySold;
+        if (sale.profitLoss) productProfitMap[sale.productName] += sale.profitLoss;
     });
 
-    // Sort to get Top 5
+    // Sort to get Top 5 Sales
     const sortedProducts = Object.keys(productSalesMap).sort((a, b) => productSalesMap[b] - productSalesMap[a]).slice(0, 5);
     const dataValues = sortedProducts.map(p => productSalesMap[p]);
 
@@ -618,4 +716,63 @@ function renderAnalytics() {
             }
         }
     });
+
+    // Profit vs Loss Chart
+    if (ctxPL) {
+        const sortedPL = Object.keys(productProfitMap).sort((a, b) => productProfitMap[b] - productProfitMap[a]).slice(0, 5);
+        const plValues = sortedPL.map(p => productProfitMap[p]);
+        const plColors = plValues.map(v => v >= 0 ? 'rgba(16, 185, 129, 0.6)' : 'rgba(239, 68, 68, 0.6)');
+
+        if (profitLossChart) profitLossChart.destroy();
+        profitLossChart = new Chart(ctxPL.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: sortedPL.length ? sortedPL : ['No Data'],
+                datasets: [{
+                    label: 'Profit/Loss (₹)',
+                    data: plValues.length ? plValues : [0],
+                    backgroundColor: plColors,
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+
+    // Update Top Profitable and Loss Making lists
+    const listProfitable = document.getElementById('list-profitable');
+    const listLossMaking = document.getElementById('list-loss-making');
+    
+    if (listProfitable && listLossMaking) {
+        listProfitable.innerHTML = "";
+        listLossMaking.innerHTML = "";
+        
+        const allProdsByProfit = Object.keys(productProfitMap).sort((a, b) => productProfitMap[b] - productProfitMap[a]);
+        
+        let hasProfitable = false;
+        let hasLoss = false;
+
+        allProdsByProfit.forEach(p => {
+            const val = productProfitMap[p];
+            if (val > 0) {
+                listProfitable.innerHTML += `<li><span>${p}</span><span class="text-success">${formatINR(val)}</span></li>`;
+                hasProfitable = true;
+            } else if (val < 0) {
+                listLossMaking.innerHTML += `<li><span>${p}</span><span class="text-danger">${formatINR(Math.abs(val))}</span></li>`;
+                hasLoss = true;
+            }
+        });
+
+        if (!hasProfitable) listProfitable.innerHTML = `<li class="empty-state">No profitable products yet.</li>`;
+        if (!hasLoss) listLossMaking.innerHTML = `<li class="empty-state">No loss-making products!</li>`;
+    }
 }

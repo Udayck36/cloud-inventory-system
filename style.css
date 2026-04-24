@@ -117,6 +117,8 @@ body {
 .mx-auto { margin-left: auto; margin-right: auto; }
 .mt-3 { margin-top: 1rem; }
 .text-center { text-align: center; }
+.text-success { color: var(--success); font-weight: 600; }
+.text-danger { color: var(--danger); font-weight: 600; }
 
 /* Dashboard Cards */
 .dashboard-grid {
@@ -276,6 +278,23 @@ body {
 .btn-sm {
     padding: 6px 12px;
     font-size: 12px;
+}
+
+.btn-clear-alert {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 10px;
+}
+.btn-clear-alert:hover {
+    background: #f1f5f9;
+    color: var(--text-main);
+    border-color: #cbd5e1;
 }
 
 /* Tables */
