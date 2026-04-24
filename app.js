@@ -1,5 +1,6 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+import { db, auth, provider } from "./firebase-config.js";
+import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
 // --- DOM Elements ---
 const navLinks = document.querySelectorAll('.nav-link');
@@ -69,14 +70,31 @@ let salesChart = null;
 let profitLossChart = null;
 let currentChartType = 'bar';
 
+let unsubProducts = null;
+let unsubSales = null;
+let unsubAlerts = null;
+
+const getUserUid = () => {
+    if (!auth.currentUser) throw new Error("Not authenticated");
+    return auth.currentUser.uid;
+};
+
+const getProductsRef = () => collection(db, `users/${getUserUid()}/products`);
+const getSalesRef = () => collection(db, `users/${getUserUid()}/sales`);
+const getAlertsRef = () => collection(db, `users/${getUserUid()}/alerts`);
+
+const getProductDoc = (id) => doc(db, `users/${getUserUid()}/products`, id);
+const getSaleDoc = (id) => doc(db, `users/${getUserUid()}/sales`, id);
+const getAlertDoc = (id) => doc(db, `users/${getUserUid()}/alerts`, id);
+
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     initNavigation();
     initNetworkStatus();
-    initRealtimeListeners();
     initForms();
     initModals();
+    initAuth();
 
     const chartSelector = document.getElementById('chart-type-selector');
     if (chartSelector) {
@@ -99,6 +117,77 @@ document.addEventListener('DOMContentLoaded', () => {
     Chart.defaults.plugins.tooltip.padding = 12;
     Chart.defaults.plugins.tooltip.cornerRadius = 8;
 });
+
+// --- Auth System ---
+function initAuth() {
+    const loginOverlay = document.getElementById('login-overlay');
+    const appContainer = document.getElementById('app-container');
+    const btnGoogleLogin = document.getElementById('btn-google-login');
+    const btnLogout = document.getElementById('btn-logout');
+    const userAvatar = document.getElementById('user-avatar');
+    const userName = document.getElementById('user-name');
+
+    if (btnGoogleLogin) {
+        btnGoogleLogin.addEventListener('click', async () => {
+            try {
+                btnGoogleLogin.disabled = true;
+                btnGoogleLogin.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Signing in...';
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Login error:", error);
+                showToast("Failed to sign in. " + error.message, "error");
+                btnGoogleLogin.disabled = false;
+                btnGoogleLogin.innerHTML = '<i class="ph-bold ph-google-logo"></i> Sign in with Google';
+            }
+        });
+    }
+
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                showToast("Signed out successfully");
+            } catch (error) {
+                console.error("Logout error:", error);
+                showToast("Failed to sign out", "error");
+            }
+        });
+    }
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            // Logged in
+            loginOverlay.style.display = 'none';
+            appContainer.style.display = 'flex';
+            if (userAvatar) userAvatar.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=4f46e5&color=fff&rounded=true`;
+            if (userName) userName.textContent = user.displayName || 'User';
+            
+            initRealtimeListeners();
+        } else {
+            // Logged out
+            loginOverlay.style.display = 'flex';
+            appContainer.style.display = 'none';
+            if (btnGoogleLogin) {
+                btnGoogleLogin.disabled = false;
+                btnGoogleLogin.innerHTML = '<i class="ph-bold ph-google-logo"></i> Sign in with Google';
+            }
+            stopRealtimeListeners();
+            clearAppData();
+        }
+    });
+}
+
+function stopRealtimeListeners() {
+    if (unsubProducts) { unsubProducts(); unsubProducts = null; }
+    if (unsubSales) { unsubSales(); unsubSales = null; }
+    if (unsubAlerts) { unsubAlerts(); unsubAlerts = null; }
+}
+
+function clearAppData() {
+    products = [];
+    sales = [];
+    alerts = [];
+}
 
 // --- Theme System ---
 function initTheme() {
@@ -223,8 +312,8 @@ function initNavigation() {
 // --- Real-time Listeners ---
 function initRealtimeListeners() {
     // 1. Products Listener
-    const qProducts = query(collection(db, "products"), orderBy("createdAt", "desc"));
-    onSnapshot(qProducts, (snapshot) => {
+    const qProducts = query(getProductsRef(), orderBy("createdAt", "desc"));
+    unsubProducts = onSnapshot(qProducts, (snapshot) => {
         products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderInventoryTable();
         updateDashboardStats();
@@ -237,8 +326,8 @@ function initRealtimeListeners() {
     });
 
     // 2. Sales Listener
-    const qSales = query(collection(db, "sales"), orderBy("soldAt", "desc"));
-    onSnapshot(qSales, (snapshot) => {
+    const qSales = query(getSalesRef(), orderBy("soldAt", "desc"));
+    unsubSales = onSnapshot(qSales, (snapshot) => {
         sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderSalesFeed();
         updateDashboardStats();
@@ -248,8 +337,8 @@ function initRealtimeListeners() {
     });
 
     // 3. Alerts Listener
-    const qAlerts = query(collection(db, "alerts"), orderBy("createdAt", "desc"));
-    onSnapshot(qAlerts, (snapshot) => {
+    const qAlerts = query(getAlertsRef(), orderBy("createdAt", "desc"));
+    unsubAlerts = onSnapshot(qAlerts, (snapshot) => {
         alerts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         renderAlertsFeed();
     });
@@ -279,7 +368,7 @@ function initForms() {
         };
 
         try {
-            await addDoc(collection(db, "products"), newProduct);
+            await addDoc(getProductsRef(), newProduct);
             showToast("Product added successfully!");
             addProductForm.reset();
             // Switch back to inventory
@@ -398,10 +487,10 @@ function initForms() {
                 paymentStatus: paymentStatus,
                 soldAt: new Date()
             };
-            await addDoc(collection(db, "sales"), saleRecord);
+            await addDoc(getSalesRef(), saleRecord);
 
             if (salePrice < (product.costPrice || 0)) {
-                await addDoc(collection(db, "alerts"), {
+                await addDoc(getAlertsRef(), {
                     productId: product.id,
                     productName: product.productName,
                     alertType: 'LOSS_WARNING',
@@ -414,7 +503,7 @@ function initForms() {
             }
 
             // 2. Reduce Product Stock
-            const prodRef = doc(db,"products", product.id);
+            const prodRef = getProductDoc(product.id);
             await updateDoc(prodRef, {
                 quantity: product.quantity - qtySold,
                 updatedAt: new Date()
@@ -465,7 +554,7 @@ function initModals() {
         btn.textContent = "Updating...";
 
         try {
-            await updateDoc(doc(db,"products", id), {
+            await updateDoc(getProductDoc(id), {
                 quantity: newQty,
                 updatedAt: serverTimestamp()
             });
@@ -563,7 +652,7 @@ function renderInventoryTable(searchTerm = "") {
             const id = e.target.getAttribute('data-id');
             if (confirm("Are you sure you want to delete this product?")) {
                 try {
-                    await deleteDoc(doc(db,"products", id));
+                    await deleteDoc(getProductDoc(id));
                     showToast("Product deleted.");
                 } catch (error) {
                     showToast("Failed to delete product.", "error");
@@ -678,7 +767,7 @@ async function generateAlerts() {
                     shouldAlert = true;
                     // Resolve ALL old stock alerts for this product to prevent duplicates
                     for (const a of existingStockAlerts) {
-                        await updateDoc(doc(db,"alerts", a.id), { resolved: true, updatedAt: new Date() });
+                        await updateDoc(getAlertDoc(a.id), { resolved: true, updatedAt: new Date() });
                     }
                 }
             }
@@ -686,7 +775,7 @@ async function generateAlerts() {
             // Not alertable (IN_STOCK), but has alerts? Resolve them!
             if (existingStockAlerts.length > 0) {
                 for (const a of existingStockAlerts) {
-                    await updateDoc(doc(db,"alerts", a.id), { resolved: true, updatedAt: new Date() });
+                    await updateDoc(getAlertDoc(a.id), { resolved: true, updatedAt: new Date() });
                 }
             }
         }
@@ -697,7 +786,7 @@ async function generateAlerts() {
             else if (currentLevel === 'CRITICAL') msg = `Critical Stock: ${p.productName} only ${p.quantity} units remaining`;
             else if (currentLevel === 'LOW') msg = `Low Stock: ${p.productName} has ${p.quantity} units remaining`;
 
-            await addDoc(collection(db, "alerts"), {
+            await addDoc(getAlertsRef(), {
                 productId: p.id,
                 productName: p.productName,
                 alertType: 'STOCK_ALERT',
@@ -718,7 +807,7 @@ async function generateAlerts() {
                 let msg = expInfo.status === 'Expired'
                     ? `${p.productName} has expired!`
                     : `${p.productName} expires in ${expInfo.daysLeft} days.`;
-                await addDoc(collection(db, "alerts"), {
+                await addDoc(getAlertsRef(), {
                     productId: p.id,
                     productName: p.productName,
                     alertType: 'EXPIRY_WARNING',
@@ -731,7 +820,7 @@ async function generateAlerts() {
         } else {
             const activeExpiry = alerts.filter(a => a.productId === p.id && a.alertType === 'EXPIRY_WARNING' && !a.resolved);
             for (const a of activeExpiry) {
-                await updateDoc(doc(db,"alerts", a.id), { resolved: true, updatedAt: new Date() });
+                await updateDoc(getAlertDoc(a.id), { resolved: true, updatedAt: new Date() });
             }
         }
     }
@@ -742,7 +831,7 @@ alertsFeed.addEventListener('click', async (e) => {
     if (e.target.classList.contains('btn-clear-alert')) {
         const alertId = e.target.getAttribute('data-id');
         try {
-            await updateDoc(doc(db,"alerts", alertId), { 
+            await updateDoc(getAlertDoc(alertId), { 
                 resolved: true, 
                 updatedAt: serverTimestamp() 
             });
@@ -1052,7 +1141,7 @@ function renderCreditDashboard() {
             const saleId = e.target.getAttribute('data-id');
             if (confirm("Mark this credit sale as fully paid?")) {
                 try {
-                    await updateDoc(doc(db, "sales",  saleId), {
+                    await updateDoc(getSaleDoc(saleId), {
                         paymentStatus: 'Paid',
                         dueAmount: 0
                     });

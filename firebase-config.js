@@ -1,5 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
 import { getFirestore, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyBIBdhaaSdxDovXN7Y__Od2bpnq8o_m8VA",
@@ -12,6 +13,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
 // Enable offline persistence
 enableIndexedDbPersistence(db)
@@ -23,4 +26,4 @@ enableIndexedDbPersistence(db)
     }
   });
 
-export { db };
+export { db, auth, provider };
