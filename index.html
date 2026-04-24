@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Inventory System</title>
+    <!-- Use a modern Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js for analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>☁️ CloudStock</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-link active" data-target="dashboard-section">
+                    <span class="icon">📊</span> Dashboard
+                </a>
+                <a href="#" class="nav-link" data-target="inventory-section">
+                    <span class="icon">📦</span> Inventory
+                </a>
+                <a href="#" class="nav-link" data-target="add-product-section">
+                    <span class="icon">➕</span> Add Product
+                </a>
+                <a href="#" class="nav-link" data-target="sales-section">
+                    <span class="icon">🛒</span> Record Sale
+                </a>
+                <a href="#" class="nav-link" data-target="analytics-section">
+                    <span class="icon">📈</span> Analytics
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="top-navbar">
+                <h1 id="page-title">Dashboard</h1>
+                <div class="user-profile">
+                    <div class="avatar">Admin</div>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <!-- Dashboard Section -->
+                <section id="dashboard-section" class="page-section active">
+                    <div class="dashboard-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-blue">📦</div>
+                            <div class="stat-details">
+                                <h3>Total Products</h3>
+                                <p id="stat-total-products">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-green">✅</div>
+                            <div class="stat-details">
+                                <h3>Current Stock Units</h3>
+                                <p id="stat-total-stock">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-red">⚠️</div>
+                            <div class="stat-details">
+                                <h3>Low Stock Items</h3>
+                                <p id="stat-low-stock">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-purple">💰</div>
+                            <div class="stat-details">
+                                <h3>Total Sales Today</h3>
+                                <p id="stat-sales-today">$0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-row">
+                        <div class="card feed-card">
+                            <div class="card-header">
+                                <h2>Recent Alerts</h2>
+                            </div>
+                            <div class="card-body">
+                                <ul id="alerts-feed" class="activity-list">
+                                    <li class="empty-state">No recent alerts</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card feed-card">
+                            <div class="card-header">
+                                <h2>Recent Sales</h2>
+                            </div>
+                            <div class="card-body">
+                                <ul id="sales-feed" class="activity-list">
+                                    <li class="empty-state">No recent sales</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Inventory Section -->
+                <section id="inventory-section" class="page-section hidden">
+                    <div class="card">
+                        <div class="card-header flex-between">
+                            <h2>Inventory Management</h2>
+                            <div class="table-actions">
+                                <input type="text" id="search-inventory" placeholder="Search products..." class="form-control search-input">
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table" id="inventory-table">
+                                    <thead>
+                                        <tr>
+                                            <th>SKU</th>
+                                            <th>Product Name</th>
+                                            <th>Category</th>
+                                            <th>Price</th>
+                                            <th>Quantity</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="inventory-tbody">
+                                        <tr>
+                                            <td colspan="7" class="text-center empty-state">Loading inventory...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Add Product Section -->
+                <section id="add-product-section" class="page-section hidden">
+                    <div class="card max-w-2xl mx-auto">
+                        <div class="card-header">
+                            <h2>Add New Product</h2>
+                        </div>
+                        <div class="card-body">
+                            <form id="add-product-form">
+                                <div class="form-group">
+                                    <label>Product Name</label>
+                                    <input type="text" id="prod-name" class="form-control" required placeholder="e.g. Organic Coffee Beans">
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>SKU</label>
+                                        <input type="text" id="prod-sku" class="form-control" required placeholder="e.g. GROC-001">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Category</label>
+                                        <select id="prod-category" class="form-control" required>
+                                            <option value="" disabled selected>Select Category</option>
+                                            <option value="Electronics">Electronics</option>
+                                            <option value="Groceries">Groceries</option>
+                                            <option value="Clothing">Clothing</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Price ($)</label>
+                                        <input type="number" step="0.01" id="prod-price" class="form-control" required placeholder="0.00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Initial Quantity</label>
+                                        <input type="number" id="prod-qty" class="form-control" required placeholder="0">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Low Stock Threshold</label>
+                                    <input type="number" id="prod-threshold" class="form-control" required placeholder="Alert when below this number">
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary" id="btn-save-product">Save Product</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Record Sale Section -->
+                <section id="sales-section" class="page-section hidden">
+                    <div class="card max-w-2xl mx-auto">
+                        <div class="card-header">
+                            <h2>Record a Sale</h2>
+                        </div>
+                        <div class="card-body">
+                            <form id="record-sale-form">
+                                <div class="form-group">
+                                    <label>Select Product</label>
+                                    <select id="sale-product" class="form-control" required>
+                                        <option value="" disabled selected>Loading products...</option>
+                                    </select>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Quantity Sold</label>
+                                        <input type="number" id="sale-qty" class="form-control" min="1" required placeholder="1">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Current Stock</label>
+                                        <input type="text" id="sale-current-stock" class="form-control" readonly disabled value="-">
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary" id="btn-record-sale">Confirm Sale</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Analytics Section -->
+                <section id="analytics-section" class="page-section hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Top Selling Products (Analytics)</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container" style="position: relative; height:400px; width:100%">
+                                <canvas id="salesChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Edit Product Modal -->
+    <div id="edit-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Product Quantity</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="edit-product-form">
+                    <input type="hidden" id="edit-prod-id">
+                    <div class="form-group">
+                        <label>New Quantity</label>
+                        <input type="number" id="edit-prod-qty" class="form-control" required>
+                    </div>
+                    <div class="form-actions mt-3">
+                        <button type="submit" class="btn btn-primary">Update Stock</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- App Logic -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
