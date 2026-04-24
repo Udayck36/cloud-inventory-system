@@ -189,6 +189,25 @@ function clearAppData() {
     alerts = [];
 }
 
+// --- Email Helper ---
+function sendAlertEmail(userEmail, message, productName, alertType) {
+    if (!userEmail || typeof emailjs === 'undefined') return;
+    
+    const templateParams = {
+        to_email: userEmail,
+        message: message,
+        product_name: productName,
+        alert_type: alertType
+    };
+
+    emailjs.send("service_wrnso2n", "template_5gicgce", templateParams)
+        .then((response) => {
+            console.log('SUCCESS: Alert email sent!', response.status, response.text);
+        }, (error) => {
+            console.error('FAILED to send alert email...', error);
+        });
+}
+
 // --- Theme System ---
 function initTheme() {
     const themeToggle = document.getElementById('theme-toggle');
@@ -490,16 +509,22 @@ function initForms() {
             await addDoc(getSalesRef(), saleRecord);
 
             if (salePrice < (product.costPrice || 0)) {
+                const lossMsg = `Loss Warning: ${product.productName} sold below cost price.`;
                 await addDoc(getAlertsRef(), {
                     productId: product.id,
                     productName: product.productName,
                     alertType: 'LOSS_WARNING',
                     alertLevel: 'WARNING',
-                    message: `Loss Warning: ${product.productName} sold below cost price.`,
+                    message: lossMsg,
                     createdAt: new Date(),
                     resolved: false
                 });
-                showToast(`Loss Warning: Product sold below cost price`, "warning");
+                showToast(lossMsg, "warning");
+                
+                // Trigger Email
+                if (auth.currentUser && auth.currentUser.email) {
+                    sendAlertEmail(auth.currentUser.email, lossMsg, product.productName, 'LOSS_WARNING');
+                }
             }
 
             // 2. Reduce Product Stock
@@ -797,6 +822,11 @@ async function generateAlerts() {
                 resolved: false
             });
             showToast(msg, "warning");
+
+            // Trigger Email
+            if (auth.currentUser && auth.currentUser.email) {
+                sendAlertEmail(auth.currentUser.email, msg, p.productName, currentLevel);
+            }
         }
 
         // 2. Expiry Alert
@@ -816,6 +846,11 @@ async function generateAlerts() {
                     resolved: false
                 });
                 showToast(`Expiry Alert: ${p.productName}`, "warning");
+
+                // Trigger Email
+                if (auth.currentUser && auth.currentUser.email) {
+                    sendAlertEmail(auth.currentUser.email, msg, p.productName, expInfo.status);
+                }
             }
         } else {
             const activeExpiry = alerts.filter(a => a.productId === p.id && a.alertType === 'EXPIRY_WARNING' && !a.resolved);
