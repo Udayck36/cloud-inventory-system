@@ -4,40 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloud Inventory System</title>
-    <!-- Use a modern Google Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link rel="stylesheet" href="style.css">
-    <!-- Chart.js for analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="app-container">
         <!-- Sidebar Navigation -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h2>☁️ CloudStock</h2>
+                <i class="ph-fill ph-cloud-cube text-primary" style="font-size: 28px;"></i>
+                <h2 class="sidebar-title">CloudStock</h2>
             </div>
             <nav class="sidebar-nav">
                 <a href="#" class="nav-link active" data-target="dashboard-section">
-                    <span class="icon">📊</span> Dashboard
+                    <i class="ph ph-squares-four icon"></i> <span class="nav-text">Dashboard</span>
                 </a>
                 <a href="#" class="nav-link" data-target="inventory-section">
-                    <span class="icon">📦</span> Inventory
+                    <i class="ph ph-package icon"></i> <span class="nav-text">Inventory</span>
                 </a>
                 <a href="#" class="nav-link" data-target="add-product-section">
-                    <span class="icon">➕</span> Add Product
+                    <i class="ph ph-plus-circle icon"></i> <span class="nav-text">Add Product</span>
                 </a>
                 <a href="#" class="nav-link" data-target="sales-section">
-                    <span class="icon">🛒</span> Record Sale
+                    <i class="ph ph-shopping-cart icon"></i> <span class="nav-text">Record Sale</span>
                 </a>
                 <a href="#" class="nav-link" data-target="credit-section">
-                    <span class="icon">💳</span> Credit Management
+                    <i class="ph ph-credit-card icon"></i> <span class="nav-text">Credit Management</span>
                 </a>
                 <a href="#" class="nav-link" data-target="restock-section">
-                    <span class="icon">🔄</span> Restock Recommendations
+                    <i class="ph ph-arrows-clockwise icon"></i> <span class="nav-text">Restock</span>
                 </a>
                 <a href="#" class="nav-link" data-target="analytics-section">
-                    <span class="icon">📈</span> Analytics
+                    <i class="ph ph-chart-line-up icon"></i> <span class="nav-text">Analytics</span>
                 </a>
             </nav>
         </aside>
@@ -46,14 +46,18 @@
         <main class="main-content">
             <!-- Header -->
             <header class="top-navbar">
-                <h1 id="page-title">Dashboard</h1>
+                <div class="header-left">
+                    <button id="sidebar-toggle" class="btn-icon"><i class="ph ph-list"></i></button>
+                    <h1 id="page-title">Dashboard</h1>
+                </div>
                 <div class="header-right">
                     <div id="network-status" class="network-status online">
                         <span class="status-dot"></span>
                         <span class="status-text">Online</span>
                     </div>
                     <div class="user-profile">
-                        <div class="avatar">Admin</div>
+                        <img src="https://ui-avatars.com/api/?name=Admin&background=4f46e5&color=fff&rounded=true" alt="Admin Avatar" class="avatar-img">
+                        <span class="user-name">Admin</span>
                     </div>
                 </div>
             </header>
@@ -63,84 +67,84 @@
                 <section id="dashboard-section" class="page-section active">
                     <div class="dashboard-grid">
                         <div class="stat-card">
-                            <div class="stat-icon bg-blue">📦</div>
+                            <div class="stat-icon bg-blue-grad"><i class="ph-fill ph-package"></i></div>
                             <div class="stat-details">
                                 <h3>Total Products</h3>
                                 <p id="stat-total-products">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-green">✅</div>
+                            <div class="stat-icon bg-green-grad"><i class="ph-fill ph-check-circle"></i></div>
                             <div class="stat-details">
                                 <h3>Current Stock Units</h3>
                                 <p id="stat-total-stock">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-warning" style="background: #fef3c7; color: #d97706;">⚠️</div>
+                            <div class="stat-icon bg-yellow-grad"><i class="ph-fill ph-warning"></i></div>
                             <div class="stat-details">
                                 <h3>Low Stock Items</h3>
                                 <p id="stat-low-stock">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-red" style="background: #fee2e2; color: #dc2626;">🚨</div>
+                            <div class="stat-icon bg-orange-grad"><i class="ph-fill ph-warning-octagon"></i></div>
                             <div class="stat-details">
                                 <h3>Critical Stock</h3>
                                 <p id="stat-critical-stock">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon" style="background: #7f1d1d; color: #fecaca;">⛔</div>
+                            <div class="stat-icon bg-red-grad"><i class="ph-fill ph-x-circle"></i></div>
                             <div class="stat-details">
                                 <h3>Out of Stock</h3>
                                 <p id="stat-out-of-stock">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-purple">💰</div>
+                            <div class="stat-icon bg-purple-grad"><i class="ph-fill ph-coins"></i></div>
                             <div class="stat-details">
                                 <h3>Total Sales Today</h3>
                                 <p id="stat-sales-today">₹0.00</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-warning" style="background: #fef3c7; color: #d97706;">⏳</div>
+                            <div class="stat-icon bg-yellow-grad"><i class="ph-fill ph-hourglass-high"></i></div>
                             <div class="stat-details">
                                 <h3>Near Expiry (30d)</h3>
                                 <p id="stat-near-expiry">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-red">❌</div>
+                            <div class="stat-icon bg-red-grad"><i class="ph-fill ph-calendar-x"></i></div>
                             <div class="stat-details">
                                 <h3>Expired Items</h3>
                                 <p id="stat-expired">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-green" style="background: #dcfce7; color: #166534;">📈</div>
+                            <div class="stat-icon bg-green-grad"><i class="ph-fill ph-trend-up"></i></div>
                             <div class="stat-details">
                                 <h3>Total Revenue</h3>
                                 <p id="stat-total-revenue">₹0.00</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-red" style="background: #fee2e2; color: #991b1b;">📉</div>
+                            <div class="stat-icon bg-orange-grad"><i class="ph-fill ph-trend-down"></i></div>
                             <div class="stat-details">
                                 <h3>Total Cost</h3>
                                 <p id="stat-total-cost">₹0.00</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-blue" style="background: #dbeafe; color: #1e40af;">💵</div>
+                            <div class="stat-icon bg-indigo-grad"><i class="ph-fill ph-money"></i></div>
                             <div class="stat-details">
                                 <h3>Total Profit</h3>
                                 <p id="stat-total-profit">₹0.00</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-warning" style="background: #fef3c7; color: #92400e;">💸</div>
+                            <div class="stat-icon bg-red-grad"><i class="ph-fill ph-wallet"></i></div>
                             <div class="stat-details">
                                 <h3>Total Loss</h3>
                                 <p id="stat-total-loss">₹0.00</p>
@@ -151,17 +155,17 @@
                     <div class="dashboard-row">
                         <div class="card feed-card">
                             <div class="card-header">
-                                <h2>Recent Alerts</h2>
+                                <h2><i class="ph ph-bell"></i> Recent Alerts</h2>
                             </div>
-                            <div class="card-body">
-                                <ul id="alerts-feed" class="activity-list">
-                                    <li class="empty-state">No recent alerts</li>
-                                </ul>
+                            <div class="card-body p-0">
+                                <div id="alerts-feed" class="alert-grid">
+                                    <div class="empty-state">No recent alerts</div>
+                                </div>
                             </div>
                         </div>
                         <div class="card feed-card">
                             <div class="card-header">
-                                <h2>Recent Sales</h2>
+                                <h2><i class="ph ph-receipt"></i> Recent Sales</h2>
                             </div>
                             <div class="card-body">
                                 <ul id="sales-feed" class="activity-list">
@@ -178,13 +182,22 @@
                         <div class="card-header flex-between">
                             <h2>Inventory Management</h2>
                             <div class="table-actions">
-                                <input type="text" id="search-inventory" placeholder="Search products..." class="form-control search-input">
+                                <div class="search-box">
+                                    <i class="ph ph-magnifying-glass"></i>
+                                    <input type="text" id="search-inventory" placeholder="Search products..." class="form-control search-input">
+                                </div>
+                                <select id="sort-inventory" class="form-control" style="width: 150px;">
+                                    <option value="name_asc">Sort A-Z</option>
+                                    <option value="qty_asc">Qty (Low-High)</option>
+                                    <option value="qty_desc">Qty (High-Low)</option>
+                                    <option value="price_desc">Price (High-Low)</option>
+                                </select>
                             </div>
                         </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                                 <table class="table" id="inventory-table">
-                                    <thead>
+                                    <thead style="position: sticky; top: 0; z-index: 10;">
                                         <tr>
                                             <th>SKU</th>
                                             <th>Product Name</th>
@@ -211,65 +224,74 @@
 
                 <!-- Add Product Section -->
                 <section id="add-product-section" class="page-section hidden">
-                    <div class="card max-w-2xl mx-auto">
+                    <div class="card max-w-2xl mx-auto form-card">
                         <div class="card-header">
-                            <h2>Add New Product</h2>
+                            <h2><i class="ph ph-plus-circle"></i> Add New Product</h2>
                         </div>
                         <div class="card-body">
                             <form id="add-product-form">
-                                <div class="form-group">
-                                    <label>Product Name</label>
-                                    <input type="text" id="prod-name" class="form-control" required placeholder="e.g. Organic Coffee Beans">
-                                </div>
-                                <div class="form-grid">
+                                <div class="form-section">
+                                    <h4>Basic Details</h4>
                                     <div class="form-group">
-                                        <label>SKU</label>
-                                        <input type="text" id="prod-sku" class="form-control" required placeholder="e.g. GROC-001">
+                                        <label>Product Name</label>
+                                        <input type="text" id="prod-name" class="form-control" required placeholder="e.g. Organic Coffee Beans">
                                     </div>
-                                    <div class="form-group">
-                                        <label>Category</label>
-                                        <select id="prod-category" class="form-control" required>
-                                            <option value="" disabled selected>Select Category</option>
-                                            <option value="Electronics">Electronics</option>
-                                            <option value="Groceries">Groceries</option>
-                                            <option value="Clothing">Clothing</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="form-grid">
-                                    <div class="form-group">
-                                        <label>Cost Price (₹)</label>
-                                        <input type="number" step="0.01" id="prod-cost" class="form-control" required placeholder="0.00">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Default Selling Price (₹)</label>
-                                        <input type="number" step="0.01" id="prod-price" class="form-control" required placeholder="0.00">
+                                    <div class="form-grid">
+                                        <div class="form-group">
+                                            <label>SKU</label>
+                                            <input type="text" id="prod-sku" class="form-control" required placeholder="e.g. GROC-001">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Category</label>
+                                            <select id="prod-category" class="form-control" required>
+                                                <option value="" disabled selected>Select Category</option>
+                                                <option value="Electronics">Electronics</option>
+                                                <option value="Groceries">Groceries</option>
+                                                <option value="Clothing">Clothing</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="form-grid">
-                                    <div class="form-group">
-                                        <label>Initial Quantity</label>
-                                        <input type="number" id="prod-qty" class="form-control" required placeholder="0">
+                                <div class="form-section">
+                                    <h4>Pricing & Stock</h4>
+                                    <div class="form-grid">
+                                        <div class="form-group">
+                                            <label>Cost Price (₹)</label>
+                                            <input type="number" step="0.01" id="prod-cost" class="form-control" required placeholder="0.00">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Default Selling Price (₹)</label>
+                                            <input type="number" step="0.01" id="prod-price" class="form-control" required placeholder="0.00">
+                                        </div>
                                     </div>
-                                    <div class="form-group">
-                                        <label>Low Stock Threshold</label>
-                                        <input type="number" id="prod-threshold" class="form-control" required placeholder="Alert when below this number">
+                                    <div class="form-grid">
+                                        <div class="form-group">
+                                            <label>Initial Quantity</label>
+                                            <input type="number" id="prod-qty" class="form-control" required placeholder="0">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Low Stock Threshold</label>
+                                            <input type="number" id="prod-threshold" class="form-control" required placeholder="Alert when below this number">
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="form-grid">
-                                    <div class="form-group">
-                                        <label>Manufacture Date</label>
-                                        <input type="date" id="prod-mfg-date" class="form-control">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Expiry Date</label>
-                                        <input type="date" id="prod-expiry-date" class="form-control">
+                                <div class="form-section">
+                                    <h4>Dates</h4>
+                                    <div class="form-grid">
+                                        <div class="form-group">
+                                            <label>Manufacture Date</label>
+                                            <input type="date" id="prod-mfg-date" class="form-control">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Expiry Date</label>
+                                            <input type="date" id="prod-expiry-date" class="form-control">
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div class="form-actions">
-                                    <button type="submit" class="btn btn-primary" id="btn-save-product">Save Product</button>
+                                <div class="form-actions mt-3">
+                                    <button type="submit" class="btn btn-primary btn-lg" id="btn-save-product"><i class="ph ph-check"></i> Save Product</button>
                                 </div>
                             </form>
                         </div>
@@ -278,9 +300,9 @@
 
                 <!-- Record Sale Section -->
                 <section id="sales-section" class="page-section hidden">
-                    <div class="card max-w-2xl mx-auto">
+                    <div class="card max-w-2xl mx-auto form-card">
                         <div class="card-header">
-                            <h2>Record a Sale</h2>
+                            <h2><i class="ph ph-shopping-cart"></i> Record a Sale</h2>
                         </div>
                         <div class="card-body">
                             <form id="record-sale-form">
@@ -312,7 +334,8 @@
                                         <option value="Credit">Credit</option>
                                     </select>
                                 </div>
-                                <div id="credit-fields" class="hidden">
+                                <div id="credit-fields" class="hidden form-section mt-3">
+                                    <h4>Credit Details</h4>
                                     <div class="form-group">
                                         <label>Customer Name</label>
                                         <input type="text" id="sale-customer" class="form-control" placeholder="e.g. John Doe">
@@ -323,7 +346,7 @@
                                     </div>
                                 </div>
                                 <div class="form-actions mt-3">
-                                    <button type="submit" class="btn btn-primary" id="btn-record-sale">Confirm Sale</button>
+                                    <button type="submit" class="btn btn-primary btn-lg" id="btn-record-sale"><i class="ph ph-receipt"></i> Confirm Sale</button>
                                 </div>
                             </form>
                         </div>
@@ -334,21 +357,21 @@
                 <section id="credit-section" class="page-section hidden">
                     <div class="dashboard-grid">
                         <div class="stat-card">
-                            <div class="stat-icon bg-warning" style="background: #fef3c7; color: #d97706;">⏳</div>
+                            <div class="stat-icon bg-yellow-grad"><i class="ph-fill ph-hourglass"></i></div>
                             <div class="stat-details">
                                 <h3>Pending Dues</h3>
                                 <p id="stat-pending-dues">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-red" style="background: #fee2e2; color: #dc2626;">🚨</div>
+                            <div class="stat-icon bg-red-grad"><i class="ph-fill ph-warning-circle"></i></div>
                             <div class="stat-details">
                                 <h3>Overdue Payments</h3>
                                 <p id="stat-overdue-payments">0</p>
                             </div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-icon bg-blue" style="background: #dbeafe; color: #1e40af;">💳</div>
+                            <div class="stat-icon bg-indigo-grad"><i class="ph-fill ph-credit-card"></i></div>
                             <div class="stat-details">
                                 <h3>Total Receivables</h3>
                                 <p id="stat-total-receivables">₹0.00</p>
@@ -357,9 +380,9 @@
                     </div>
                     <div class="card mt-3">
                         <div class="card-header">
-                            <h2>Pending Credits</h2>
+                            <h2><i class="ph ph-clock-counter-clockwise"></i> Pending Credits</h2>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body p-0">
                             <div class="table-responsive">
                                 <table class="table">
                                     <thead>
@@ -386,11 +409,11 @@
                 <section id="restock-section" class="page-section hidden">
                     <div class="card">
                         <div class="card-header">
-                            <h2>Smart Restock Recommendations</h2>
+                            <h2><i class="ph ph-sparkle text-primary"></i> Smart Restock Recommendations</h2>
                             <p class="text-muted" style="margin-top: 5px; font-size: 0.9em;">Based on last 30 days sales velocity.</p>
                         </div>
                         <div class="card-body">
-                            <ul id="restock-list" class="activity-list">
+                            <ul id="restock-list" class="activity-list restock-list">
                                 <li class="empty-state">Calculating recommendations...</li>
                             </ul>
                         </div>
@@ -401,11 +424,11 @@
                     <div class="dashboard-row">
                         <div class="card">
                             <div class="card-header flex-between">
-                                <h2>Sales Revenue</h2>
+                                <h2><i class="ph ph-chart-line"></i> Sales Analytics</h2>
                                 <select id="chart-type-selector" class="form-control" style="width: auto;">
-                                    <option value="bar">Bar Graph</option>
-                                    <option value="line">Line Graph</option>
-                                    <option value="pie">Pie Chart</option>
+                                    <option value="bar">Bar Graph (Top 5)</option>
+                                    <option value="line">Line Graph (Trend)</option>
+                                    <option value="pie">Pie Chart (Share)</option>
                                 </select>
                             </div>
                             <div class="card-body">
@@ -416,7 +439,7 @@
                         </div>
                         <div class="card">
                             <div class="card-header">
-                                <h2>Profit vs Loss</h2>
+                                <h2><i class="ph ph-scales"></i> Profit vs Loss</h2>
                             </div>
                             <div class="card-body">
                                 <div class="chart-container" style="position: relative; height:300px; width:100%">
@@ -429,20 +452,20 @@
                     <div class="dashboard-row mt-3">
                         <div class="card">
                             <div class="card-header">
-                                <h2>Top Profitable Products</h2>
+                                <h2><i class="ph ph-trend-up text-success"></i> Top Profitable Products</h2>
                             </div>
-                            <div class="card-body">
-                                <ul id="list-profitable" class="activity-list">
+                            <div class="card-body p-0">
+                                <ul id="list-profitable" class="activity-list px-4 py-2">
                                     <li class="empty-state">Loading...</li>
                                 </ul>
                             </div>
                         </div>
                         <div class="card">
                             <div class="card-header">
-                                <h2>Loss-Making Products</h2>
+                                <h2><i class="ph ph-trend-down text-danger"></i> Loss-Making Products</h2>
                             </div>
-                            <div class="card-body">
-                                <ul id="list-loss-making" class="activity-list">
+                            <div class="card-body p-0">
+                                <ul id="list-loss-making" class="activity-list px-4 py-2">
                                     <li class="empty-state">Loading...</li>
                                 </ul>
                             </div>
@@ -458,7 +481,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2>Edit Product Quantity</h2>
-                <span class="close-modal">&times;</span>
+                <button class="btn-icon close-modal"><i class="ph ph-x"></i></button>
             </div>
             <div class="modal-body">
                 <form id="edit-product-form">
@@ -468,7 +491,7 @@
                         <input type="number" id="edit-prod-qty" class="form-control" required>
                     </div>
                     <div class="form-actions mt-3">
-                        <button type="submit" class="btn btn-primary">Update Stock</button>
+                        <button type="submit" class="btn btn-primary w-100">Update Stock</button>
                     </div>
                 </form>
             </div>

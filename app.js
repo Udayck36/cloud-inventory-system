@@ -84,6 +84,22 @@ document.addEventListener('DOMContentLoaded', () => {
             renderAnalytics();
         });
     }
+
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+    if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+        });
+    }
+
+    // Global Chart Defaults
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.color = "#64748b";
+    Chart.defaults.scale.grid.color = "#f1f5f9";
+    Chart.defaults.plugins.tooltip.backgroundColor = "#1e293b";
+    Chart.defaults.plugins.tooltip.padding = 12;
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
 });
 
 // --- Toast System ---
@@ -92,9 +108,9 @@ function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
 
-    let icon = '✅';
-    if (type === 'error') icon = '❌';
-    if (type === 'warning') icon = '⚠️';
+    let icon = '<i class="ph-fill ph-check-circle" style="font-size:20px;"></i>';
+    if (type === 'error') icon = '<i class="ph-fill ph-x-circle" style="font-size:20px;"></i>';
+    if (type === 'warning') icon = '<i class="ph-fill ph-warning" style="font-size:20px;"></i>';
 
     toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
     toastContainer.appendChild(toast);
@@ -142,7 +158,8 @@ function initNavigation() {
             link.classList.add('active');
 
             // Update Page Title
-            pageTitle.textContent = link.textContent.replace(/[^\x00-\x7F]/g, "").trim(); // Remove emoji
+            const navText = link.querySelector('.nav-text');
+            pageTitle.textContent = navText ? navText.textContent : link.textContent.trim();
 
             // Show Target Section
             pageSections.forEach(sec => sec.classList.add('hidden'));
@@ -368,7 +385,13 @@ function initForms() {
         }
     });
 
-    // Search Inventory
+    // Search & Sort Inventory
+    const sortInventory = document.getElementById('sort-inventory');
+    if (sortInventory) {
+        sortInventory.addEventListener('change', () => {
+            renderInventoryTable(searchInventory.value);
+        });
+    }
     searchInventory.addEventListener('input', (e) => {
         renderInventoryTable(e.target.value);
     });
@@ -423,8 +446,23 @@ function renderInventoryTable(searchTerm = "") {
         (p.category || '').toLowerCase().includes(term)
     );
 
+    const sortVal = document.getElementById('sort-inventory') ? document.getElementById('sort-inventory').value : 'name_asc';
+    
+    filteredProducts.sort((a, b) => {
+        if (sortVal === 'name_asc') {
+            return (a.productName || '').localeCompare(b.productName || '');
+        } else if (sortVal === 'qty_asc') {
+            return a.quantity - b.quantity;
+        } else if (sortVal === 'qty_desc') {
+            return b.quantity - a.quantity;
+        } else if (sortVal === 'price_desc') {
+            return b.price - a.price;
+        }
+        return 0;
+    });
+
     if (filteredProducts.length === 0) {
-        inventoryTbody.innerHTML = `<tr><td colspan="7" class="text-center empty-state">No products found.</td></tr>`;
+        inventoryTbody.innerHTML = `<tr><td colspan="10" class="text-center empty-state">No products found.</td></tr>`;
         return;
     }
 
@@ -455,8 +493,8 @@ function renderInventoryTable(searchTerm = "") {
             <td>${expiryBadge}</td>
             <td>${statusBadge}</td>
             <td class="table-actions">
-                <button class="btn btn-sm btn-primary btn-edit" data-id="${product.id}" data-qty="${product.quantity}">Edit Stock</button>
-                <button class="btn btn-sm btn-danger btn-delete" data-id="${product.id}">Delete</button>
+                <button class="btn btn-sm btn-primary btn-edit" data-id="${product.id}" data-qty="${product.quantity}"><i class="ph ph-pencil-simple"></i> Edit</button>
+                <button class="btn btn-sm btn-danger btn-delete" data-id="${product.id}"><i class="ph ph-trash"></i> Delete</button>
             </td>
         `;
         inventoryTbody.appendChild(tr);
@@ -671,32 +709,37 @@ alertsFeed.addEventListener('click', async (e) => {
 
 function renderAlertsFeed() {
     alertsFeed.innerHTML = "";
-    // Only show unresolved
     const activeAlerts = alerts.filter(a => !a.resolved).slice(0, 5);
 
     if (activeAlerts.length === 0) {
-        alertsFeed.innerHTML = `<li class="empty-state">All good! No active alerts.</li>`;
+        alertsFeed.innerHTML = `<div class="empty-state">All good! No active alerts.</div>`;
         return;
     }
 
     activeAlerts.forEach(a => {
         const timeStr = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
         
-        let icon = '⚠️';
-        let style = '';
-        if (a.alertLevel === 'CRITICAL') { icon = '🚨'; style = 'color: #dc2626; font-weight: bold;'; }
-        else if (a.alertLevel === 'OUT_OF_STOCK') { icon = '⛔'; style = 'color: #7f1d1d; font-weight: bold;'; }
-        else if (a.alertType === 'EXPIRY_WARNING') { icon = '⏳'; style = 'color: #d97706;'; }
-        else if (a.alertLevel === 'LOW') { icon = '⚠️'; style = 'color: #d97706;'; }
+        let iconClass = 'ph-fill ph-warning';
+        let cardClass = 'warning';
+        
+        if (a.alertLevel === 'CRITICAL' || a.alertLevel === 'OUT_OF_STOCK') { 
+            iconClass = 'ph-fill ph-warning-octagon'; 
+            cardClass = 'critical'; 
+        } else if (a.alertType === 'EXPIRY_WARNING') { 
+            iconClass = 'ph-fill ph-hourglass-high'; 
+        }
 
         alertsFeed.innerHTML += `
-            <li>
-                <span style="${style}">${icon} ${a.message}</span>
-                <div>
-                    <span class="activity-time">${timeStr}</span>
-                    <button class="btn-clear-alert" data-id="${a.id}">Clear</button>
+            <div class="alert-card ${cardClass}">
+                <div class="alert-content">
+                    <i class="${iconClass} alert-icon"></i>
+                    <div>
+                        <div class="alert-text">${a.message}</div>
+                        <div class="alert-time">${timeStr}</div>
+                    </div>
                 </div>
-            </li>
+                <button class="btn-clear-alert" data-id="${a.id}">Clear</button>
+            </div>
         `;
     });
 }
@@ -722,7 +765,10 @@ function renderSalesFeed() {
 
         salesFeed.innerHTML += `
             <li>
-                <span>🛒 Sold ${s.quantitySold}x ${s.productName} | Revenue ${formatINR(revenue)} | ${plString}</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i class="ph-fill ph-shopping-cart text-muted"></i>
+                    <span>Sold ${s.quantitySold}x ${s.productName} | Revenue ${formatINR(revenue)} | ${plString}</span>
+                </div>
                 <span class="activity-time">${timeStr}</span>
             </li>
         `;
