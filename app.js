@@ -67,13 +67,23 @@ let sales = [];
 let alerts = [];
 let salesChart = null;
 let profitLossChart = null;
+let currentChartType = 'bar';
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
+    initNetworkStatus();
     initRealtimeListeners();
     initForms();
     initModals();
+
+    const chartSelector = document.getElementById('chart-type-selector');
+    if (chartSelector) {
+        chartSelector.addEventListener('change', (e) => {
+            currentChartType = e.target.value;
+            renderAnalytics();
+        });
+    }
 });
 
 // --- Toast System ---
@@ -93,6 +103,31 @@ function showToast(message, type = 'success') {
         toast.classList.add('fade-out');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+// --- Network Status ---
+function initNetworkStatus() {
+    const statusDiv = document.getElementById('network-status');
+    if (!statusDiv) return;
+    const statusText = statusDiv.querySelector('.status-text');
+
+    const updateOnlineStatus = () => {
+        if (navigator.onLine) {
+            statusDiv.className = 'network-status syncing';
+            statusText.textContent = 'Syncing...';
+            setTimeout(() => {
+                statusDiv.className = 'network-status online';
+                statusText.textContent = 'Online';
+            }, 1500);
+        } else {
+            statusDiv.className = 'network-status offline';
+            statusText.textContent = 'Offline Mode';
+        }
+    };
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    if (!navigator.onLine) updateOnlineStatus();
 }
 
 // --- Navigation ---
@@ -131,6 +166,7 @@ function initRealtimeListeners() {
         updateDashboardStats();
         updateSaleDropdown();
         generateAlerts();
+        renderRestockRecommendations();
     }, (error) => {
         console.error("Error listening to products:", error);
         showToast("Error connecting to database", "error");
@@ -143,6 +179,8 @@ function initRealtimeListeners() {
         renderSalesFeed();
         updateDashboardStats();
         renderAnalytics();
+        renderCreditDashboard();
+        renderRestockRecommendations();
     });
 
     // 3. Alerts Listener
@@ -192,6 +230,22 @@ function initForms() {
     });
 
     // Record Sale
+    const salePaymentMode = document.getElementById('sale-payment-mode');
+    const creditFields = document.getElementById('credit-fields');
+    if (salePaymentMode && creditFields) {
+        salePaymentMode.addEventListener('change', (e) => {
+            if (e.target.value === 'Credit') {
+                creditFields.classList.remove('hidden');
+                document.getElementById('sale-customer').required = true;
+                document.getElementById('sale-due-date').required = true;
+            } else {
+                creditFields.classList.add('hidden');
+                document.getElementById('sale-customer').required = false;
+                document.getElementById('sale-due-date').required = false;
+            }
+        });
+    }
+
     saleProductDropdown.addEventListener('change', (e) => {
         const prodId = e.target.value;
         const product = products.find(p => p.id === prodId);
@@ -252,6 +306,19 @@ function initForms() {
             const totalCost = (product.costPrice || 0) * qtySold;
             const profitLoss = totalRevenue - totalCost;
 
+            const paymentMode = document.getElementById('sale-payment-mode').value;
+            let customerName = null;
+            let dueDate = null;
+            let paymentStatus = 'Completed';
+            let dueAmount = 0;
+
+            if (paymentMode === 'Credit') {
+                customerName = document.getElementById('sale-customer').value;
+                dueDate = document.getElementById('sale-due-date').value;
+                paymentStatus = 'Pending';
+                dueAmount = totalRevenue;
+            }
+
             const saleRecord = {
                 productId: product.id,
                 productName: product.productName,
@@ -260,6 +327,11 @@ function initForms() {
                 totalRevenue: totalRevenue,
                 totalCost: totalCost,
                 profitLoss: profitLoss,
+                paymentMode: paymentMode,
+                customerName: customerName,
+                dueDate: dueDate,
+                dueAmount: dueAmount,
+                paymentStatus: paymentStatus,
                 soldAt: new Date()
             };
             await addDoc(collection(db, "sales"), saleRecord);
@@ -667,55 +739,100 @@ function renderAnalytics() {
     // Aggregate sales by product
     const productSalesMap = {};
     const productProfitMap = {};
+    const dateSalesMap = {}; // For Line chart
 
     sales.forEach(sale => {
+        // Product aggregations
         if (!productSalesMap[sale.productName]) {
             productSalesMap[sale.productName] = 0;
             productProfitMap[sale.productName] = 0;
         }
         productSalesMap[sale.productName] += sale.quantitySold;
         if (sale.profitLoss) productProfitMap[sale.productName] += sale.profitLoss;
-    });
 
-    // Sort to get Top 5 Sales
-    const sortedProducts = Object.keys(productSalesMap).sort((a, b) => productSalesMap[b] - productSalesMap[a]).slice(0, 5);
-    const dataValues = sortedProducts.map(p => productSalesMap[p]);
+        // Date aggregations for Line chart
+        if (sale.soldAt && sale.soldAt.toDate) {
+            const dateStr = sale.soldAt.toDate().toLocaleDateString();
+            if (!dateSalesMap[dateStr]) {
+                dateSalesMap[dateStr] = 0;
+            }
+            dateSalesMap[dateStr] += (sale.totalRevenue || sale.totalAmount || 0);
+        }
+    });
 
     if (salesChart) {
         salesChart.destroy();
     }
 
-    salesChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: sortedProducts.length ? sortedProducts : ['No Data'],
-            datasets: [{
-                label: 'Units Sold (Top 5)',
-                data: dataValues.length ? dataValues : [0],
-                backgroundColor: 'rgba(79, 70, 229, 0.6)',
-                borderColor: 'rgba(79, 70, 229, 1)',
-                borderWidth: 1,
-                borderRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        precision: 0
-                    }
-                }
+    if (currentChartType === 'line') {
+        // Line Chart: Sales trend over time
+        // Sort dates
+        const sortedDates = Object.keys(dateSalesMap).sort((a, b) => new Date(a) - new Date(b));
+        const dateValues = sortedDates.map(d => dateSalesMap[d]);
+
+        salesChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedDates.length ? sortedDates : ['No Data'],
+                datasets: [{
+                    label: 'Daily Revenue (₹)',
+                    data: dateValues.length ? dateValues : [0],
+                    borderColor: 'rgba(79, 70, 229, 1)',
+                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
             },
-            plugins: {
-                legend: {
-                    display: false
-                }
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+    } else if (currentChartType === 'pie') {
+        // Pie Chart: Product-wise sales share
+        const sortedProducts = Object.keys(productSalesMap).sort((a, b) => productSalesMap[b] - productSalesMap[a]).slice(0, 5);
+        const dataValues = sortedProducts.map(p => productSalesMap[p]);
+        const pieColors = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+        salesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: sortedProducts.length ? sortedProducts : ['No Data'],
+                datasets: [{
+                    label: 'Units Sold',
+                    data: dataValues.length ? dataValues : [1],
+                    backgroundColor: sortedProducts.length ? pieColors : ['#e2e8f0'],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+    } else {
+        // Bar Chart (Default)
+        const sortedProducts = Object.keys(productSalesMap).sort((a, b) => productSalesMap[b] - productSalesMap[a]).slice(0, 5);
+        const dataValues = sortedProducts.map(p => productSalesMap[p]);
+
+        salesChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sortedProducts.length ? sortedProducts : ['No Data'],
+                datasets: [{
+                    label: 'Units Sold (Top 5)',
+                    data: dataValues.length ? dataValues : [0],
+                    backgroundColor: 'rgba(79, 70, 229, 0.6)',
+                    borderColor: 'rgba(79, 70, 229, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                plugins: { legend: { display: false } }
             }
-        }
-    });
+        });
+    }
 
     // Profit vs Loss Chart
     if (ctxPL) {
@@ -739,11 +856,7 @@ function renderAnalytics() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
+                plugins: { legend: { display: false } }
             }
         });
     }
@@ -775,4 +888,182 @@ function renderAnalytics() {
         if (!hasProfitable) listProfitable.innerHTML = `<li class="empty-state">No profitable products yet.</li>`;
         if (!hasLoss) listLossMaking.innerHTML = `<li class="empty-state">No loss-making products!</li>`;
     }
+}
+
+// --- Credit Dashboard ---
+function renderCreditDashboard() {
+    const statPendingDues = document.getElementById('stat-pending-dues');
+    const statOverduePayments = document.getElementById('stat-overdue-payments');
+    const statTotalReceivables = document.getElementById('stat-total-receivables');
+    const creditTbody = document.getElementById('credit-tbody');
+
+    if (!statPendingDues || !creditTbody) return;
+
+    let pendingCount = 0;
+    let overdueCount = 0;
+    let totalReceivables = 0;
+
+    const pendingCredits = sales.filter(s => s.paymentMode === 'Credit' && s.paymentStatus === 'Pending');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    creditTbody.innerHTML = "";
+
+    if (pendingCredits.length === 0) {
+        creditTbody.innerHTML = `<tr><td colspan="7" class="text-center empty-state">No pending credits.</td></tr>`;
+    } else {
+        pendingCredits.forEach(credit => {
+            pendingCount++;
+            totalReceivables += (credit.dueAmount || 0);
+
+            let isOverdue = false;
+            let dueDateStr = credit.dueDate || '-';
+            
+            if (credit.dueDate) {
+                const dueDate = new Date(credit.dueDate);
+                if (dueDate < today) {
+                    isOverdue = true;
+                    overdueCount++;
+                }
+            }
+
+            const saleDate = credit.soldAt && credit.soldAt.toDate ? credit.soldAt.toDate().toLocaleDateString() : '-';
+            const statusBadge = isOverdue 
+                ? `<span class="badge badge-critical">Overdue</span>` 
+                : `<span class="badge badge-warning">Pending</span>`;
+
+            creditTbody.innerHTML += `
+                <tr>
+                    <td>${saleDate}</td>
+                    <td><strong>${credit.customerName || 'Unknown'}</strong></td>
+                    <td>${credit.productName} (x${credit.quantitySold})</td>
+                    <td class="text-danger">${formatINR(credit.dueAmount || 0)}</td>
+                    <td>${dueDateStr}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        <button class="btn btn-sm btn-success btn-mark-paid" data-id="${credit.id}">Mark as Paid</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    statPendingDues.textContent = pendingCount;
+    statOverduePayments.textContent = overdueCount;
+    statTotalReceivables.textContent = formatINR(totalReceivables);
+
+    // Attach event listeners for Mark as Paid
+    document.querySelectorAll('.btn-mark-paid').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const saleId = e.target.getAttribute('data-id');
+            if (confirm("Mark this credit sale as fully paid?")) {
+                try {
+                    await updateDoc(doc(db, "sales", saleId), {
+                        paymentStatus: 'Paid',
+                        dueAmount: 0
+                    });
+                    showToast("Payment recorded successfully!");
+                } catch (err) {
+                    console.error("Error updating payment:", err);
+                    showToast("Failed to record payment", "error");
+                }
+            }
+        });
+    });
+}
+
+// --- Restock Recommendations ---
+function renderRestockRecommendations() {
+    const restockList = document.getElementById('restock-list');
+    if (!restockList) return;
+
+    restockList.innerHTML = "";
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Calculate sales velocity per product
+    const productVelocity = {};
+
+    sales.forEach(sale => {
+        if (sale.soldAt && sale.soldAt.toDate) {
+            const saleDate = sale.soldAt.toDate();
+            if (saleDate >= thirtyDaysAgo) {
+                if (!productVelocity[sale.productId]) productVelocity[sale.productId] = 0;
+                productVelocity[sale.productId] += sale.quantitySold;
+            }
+        }
+    });
+
+    const recommendations = [];
+
+    products.forEach(p => {
+        const unitsSoldLast30Days = productVelocity[p.id] || 0;
+        const dailyVelocity = unitsSoldLast30Days / 30;
+        
+        let daysUntilStockout = 9999;
+        if (dailyVelocity > 0) {
+            daysUntilStockout = p.quantity / dailyVelocity;
+        }
+
+        let priority = null;
+        let reason = '';
+        let recommendedUnits = 0;
+
+        // Smart Logic
+        if (daysUntilStockout <= 5 && p.quantity > 0 && dailyVelocity > 0) {
+            priority = 'High';
+            reason = `High demand: Stock will run out in ~${Math.ceil(daysUntilStockout)} days!`;
+            recommendedUnits = Math.ceil(dailyVelocity * 30) - p.quantity;
+        } else if (p.quantity <= p.lowStockLimit) {
+            priority = 'Medium';
+            reason = `Current stock (${p.quantity}) is below threshold (${p.lowStockLimit}).`;
+            recommendedUnits = Math.max(p.lowStockLimit * 2, Math.ceil(dailyVelocity * 30));
+        } else if (p.quantity === 0) {
+            priority = 'High';
+            reason = 'Out of stock!';
+            recommendedUnits = Math.max(20, Math.ceil(dailyVelocity * 30));
+        }
+
+        if (priority) {
+            recommendations.push({
+                product: p,
+                priority,
+                reason,
+                recommendedUnits: recommendedUnits <= 0 ? 20 : recommendedUnits, // Default fallback
+                velocity: dailyVelocity.toFixed(1)
+            });
+        }
+    });
+
+    // Sort: High priority first
+    recommendations.sort((a, b) => {
+        if (a.priority === 'High' && b.priority === 'Medium') return -1;
+        if (a.priority === 'Medium' && b.priority === 'High') return 1;
+        return 0;
+    });
+
+    if (recommendations.length === 0) {
+        restockList.innerHTML = `<li class="empty-state">Stock levels look healthy. No recommendations at this time.</li>`;
+        return;
+    }
+
+    recommendations.forEach(rec => {
+        const badgeClass = rec.priority === 'High' ? 'badge-priority-high' : 'badge-priority-medium';
+        restockList.innerHTML += `
+            <li>
+                <div>
+                    <strong>${rec.product.productName}</strong>
+                    <br>
+                    <span class="text-muted" style="font-size: 12px;">${rec.reason} (Velocity: ${rec.velocity} units/day)</span>
+                </div>
+                <div style="text-align: right;">
+                    <span class="badge ${badgeClass}">${rec.priority} Priority</span>
+                    <br>
+                    <span style="font-size: 13px; font-weight: bold; color: var(--primary);">Restock: +${rec.recommendedUnits}</span>
+                </div>
+            </li>
+        `;
+    });
 }

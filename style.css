@@ -513,3 +513,49 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* Network Status */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.network-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: #f1f5f9;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--text-muted);
+}
+
+.network-status.online .status-dot { background-color: var(--success); }
+.network-status.online .status-text { color: var(--success); }
+
+.network-status.offline .status-dot { background-color: var(--warning); }
+.network-status.offline .status-text { color: var(--warning); }
+
+.network-status.syncing .status-dot { background-color: var(--info); animation: pulse 1s infinite; }
+.network-status.syncing .status-text { color: var(--info); }
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.5; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.5; }
+}
+
+/* Priority Tags */
+.badge-priority-high { background: #fee2e2; color: #dc2626; font-weight: 600; }
+.badge-priority-medium { background: #fef3c7; color: #d97706; font-weight: 600; }
+
+.text-muted { color: var(--text-muted); }

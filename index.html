@@ -30,6 +30,12 @@
                 <a href="#" class="nav-link" data-target="sales-section">
                     <span class="icon">🛒</span> Record Sale
                 </a>
+                <a href="#" class="nav-link" data-target="credit-section">
+                    <span class="icon">💳</span> Credit Management
+                </a>
+                <a href="#" class="nav-link" data-target="restock-section">
+                    <span class="icon">🔄</span> Restock Recommendations
+                </a>
                 <a href="#" class="nav-link" data-target="analytics-section">
                     <span class="icon">📈</span> Analytics
                 </a>
@@ -41,8 +47,14 @@
             <!-- Header -->
             <header class="top-navbar">
                 <h1 id="page-title">Dashboard</h1>
-                <div class="user-profile">
-                    <div class="avatar">Admin</div>
+                <div class="header-right">
+                    <div id="network-status" class="network-status online">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Online</span>
+                    </div>
+                    <div class="user-profile">
+                        <div class="avatar">Admin</div>
+                    </div>
                 </div>
             </header>
 
@@ -292,7 +304,25 @@
                                     <label>Selling Price Per Unit (₹)</label>
                                     <input type="number" step="0.01" id="sale-price" class="form-control" required placeholder="0.00">
                                 </div>
-                                <div class="form-actions">
+                                <div class="form-group">
+                                    <label>Payment Mode</label>
+                                    <select id="sale-payment-mode" class="form-control" required>
+                                        <option value="Cash">Cash</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="Credit">Credit</option>
+                                    </select>
+                                </div>
+                                <div id="credit-fields" class="hidden">
+                                    <div class="form-group">
+                                        <label>Customer Name</label>
+                                        <input type="text" id="sale-customer" class="form-control" placeholder="e.g. John Doe">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Due Date</label>
+                                        <input type="date" id="sale-due-date" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="form-actions mt-3">
                                     <button type="submit" class="btn btn-primary" id="btn-record-sale">Confirm Sale</button>
                                 </div>
                             </form>
@@ -300,11 +330,83 @@
                     </div>
                 </section>
 
+                <!-- Credit Management Section -->
+                <section id="credit-section" class="page-section hidden">
+                    <div class="dashboard-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-warning" style="background: #fef3c7; color: #d97706;">⏳</div>
+                            <div class="stat-details">
+                                <h3>Pending Dues</h3>
+                                <p id="stat-pending-dues">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-red" style="background: #fee2e2; color: #dc2626;">🚨</div>
+                            <div class="stat-details">
+                                <h3>Overdue Payments</h3>
+                                <p id="stat-overdue-payments">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon bg-blue" style="background: #dbeafe; color: #1e40af;">💳</div>
+                            <div class="stat-details">
+                                <h3>Total Receivables</h3>
+                                <p id="stat-total-receivables">₹0.00</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h2>Pending Credits</h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Customer</th>
+                                            <th>Product</th>
+                                            <th>Due Amount</th>
+                                            <th>Due Date</th>
+                                            <th>Status</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="credit-tbody">
+                                        <tr><td colspan="7" class="text-center empty-state">Loading credits...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Restock Recommendations Section -->
+                <section id="restock-section" class="page-section hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Smart Restock Recommendations</h2>
+                            <p class="text-muted" style="margin-top: 5px; font-size: 0.9em;">Based on last 30 days sales velocity.</p>
+                        </div>
+                        <div class="card-body">
+                            <ul id="restock-list" class="activity-list">
+                                <li class="empty-state">Calculating recommendations...</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
                 <section id="analytics-section" class="page-section hidden">
                     <div class="dashboard-row">
                         <div class="card">
-                            <div class="card-header">
+                            <div class="card-header flex-between">
                                 <h2>Sales Revenue</h2>
+                                <select id="chart-type-selector" class="form-control" style="width: auto;">
+                                    <option value="bar">Bar Graph</option>
+                                    <option value="line">Line Graph</option>
+                                    <option value="pie">Pie Chart</option>
+                                </select>
                             </div>
                             <div class="card-body">
                                 <div class="chart-container" style="position: relative; height:300px; width:100%">
