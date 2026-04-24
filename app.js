@@ -161,7 +161,7 @@ function initAuth() {
             appContainer.style.display = 'flex';
             if (userAvatar) userAvatar.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&background=4f46e5&color=fff&rounded=true`;
             if (userName) userName.textContent = user.displayName || 'User';
-            
+
             initRealtimeListeners();
         } else {
             // Logged out
@@ -192,7 +192,7 @@ function clearAppData() {
 // --- Email Helper ---
 function sendAlertEmail(userEmail, message, productName, alertType) {
     if (!userEmail || typeof emailjs === 'undefined') return;
-    
+
     const templateParams = {
         to_email: userEmail,
         message: message,
@@ -208,19 +208,50 @@ function sendAlertEmail(userEmail, message, productName, alertType) {
         });
 }
 
+function getSmartRecommendation(productName, stock) {
+    if (stock <= 5) return `Restock ${productName} within 24 hours`;
+    if (stock <= 10) return `Monitor ${productName} stock closely`;
+    return `${productName} stock is healthy`;
+}
+
+function generateStockGraph(allProducts) {
+    if (!allProducts || allProducts.length === 0) return "No products found.";
+
+    let graph = "";
+    // Get up to 5 lowest stock products to keep email concise and relevant
+    const sortedProducts = [...allProducts].sort((a, b) => a.quantity - b.quantity).slice(0, 5);
+
+    let maxNameLen = 0;
+    sortedProducts.forEach(p => {
+        if (p.productName.length > maxNameLen) maxNameLen = p.productName.length;
+    });
+
+    sortedProducts.forEach(p => {
+        const namePad = p.productName.padEnd(maxNameLen, ' ');
+        const numBlocks = Math.min(p.quantity, 20); // Cap max bars at 20 for formatting
+        let blocks = "";
+        for (let i = 0; i < numBlocks; i++) blocks += "█";
+        if (p.quantity === 0) blocks = "░"; // Use a light shade block for 0
+
+        graph += `${namePad} ${blocks} ${p.quantity}\n`;
+    });
+
+    return graph.trimEnd();
+}
+
 // --- Theme System ---
 function initTheme() {
     const themeToggle = document.getElementById('theme-toggle');
     const root = document.documentElement;
     const savedTheme = localStorage.getItem('theme');
-    
+
     let currentTheme = 'light';
     if (savedTheme) {
         currentTheme = savedTheme;
     } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         currentTheme = 'dark';
     }
-    
+
     applyTheme(currentTheme);
 
     if (themeToggle) {
@@ -235,7 +266,7 @@ function initTheme() {
 function applyTheme(theme) {
     const root = document.documentElement;
     const themeToggle = document.getElementById('theme-toggle');
-    
+
     if (theme === 'dark') {
         root.setAttribute('data-theme', 'dark');
         if (themeToggle) themeToggle.innerHTML = '<i class="ph ph-sun"></i>';
@@ -252,7 +283,7 @@ function updateChartTheme(theme) {
     Chart.defaults.color = isDark ? "#94a3b8" : "#64748b";
     Chart.defaults.scale.grid.color = isDark ? "#334155" : "#f1f5f9";
     Chart.defaults.plugins.tooltip.backgroundColor = isDark ? "#0f172a" : "#1e293b";
-    
+
     if (salesChart) salesChart.update();
     if (profitLossChart) profitLossChart.update();
 }
@@ -520,10 +551,13 @@ function initForms() {
                     resolved: false
                 });
                 showToast(lossMsg, "warning");
-                
+
                 // Trigger Email
                 if (auth.currentUser && auth.currentUser.email) {
-                    sendAlertEmail(auth.currentUser.email, lossMsg, product.productName, 'LOSS_WARNING');
+                    const graphStr = generateStockGraph(products);
+                    const recStr = getSmartRecommendation(product.productName, product.quantity - qtySold);
+                    const emailMessage = `${lossMsg}\n\nStock Remaining: ${product.quantity - qtySold} units\n\n📊 Stock Trend:\n${graphStr}\n\n💡 Recommendation: ${recStr}`;
+                    sendAlertEmail(auth.currentUser.email, emailMessage, product.productName, 'LOSS_WARNING');
                 }
             }
 
@@ -608,7 +642,7 @@ function renderInventoryTable(searchTerm = "") {
     );
 
     const sortVal = document.getElementById('sort-inventory') ? document.getElementById('sort-inventory').value : 'name_asc';
-    
+
     filteredProducts.sort((a, b) => {
         if (sortVal === 'name_asc') {
             return (a.productName || '').localeCompare(b.productName || '');
@@ -738,10 +772,10 @@ function updateDashboardStats() {
     let totalLoss = 0;
 
     sales.forEach(sale => {
-        if(sale.totalRevenue) totalRevenue += sale.totalRevenue;
-        if(sale.totalCost) totalCostAmt += sale.totalCost;
-        if(sale.profitLoss > 0) totalProfit += sale.profitLoss;
-        if(sale.profitLoss < 0) totalLoss += Math.abs(sale.profitLoss);
+        if (sale.totalRevenue) totalRevenue += sale.totalRevenue;
+        if (sale.totalCost) totalCostAmt += sale.totalCost;
+        if (sale.profitLoss > 0) totalProfit += sale.profitLoss;
+        if (sale.profitLoss < 0) totalLoss += Math.abs(sale.profitLoss);
 
         if (sale.soldAt && sale.soldAt.toDate) {
             const saleDate = sale.soldAt.toDate();
@@ -772,14 +806,14 @@ function updateDashboardStats() {
 
 async function generateAlerts() {
     for (const p of products) {
-        
+
         // 1. Stock Escalation Alerts
         const currentLevel = getStockLevel(p.quantity, p.lowStockLimit);
         const isAlertable = ['LOW', 'CRITICAL', 'OUT_OF_STOCK'].includes(currentLevel);
-        
+
         // Find ANY active stock alert for this product
         const existingStockAlerts = alerts.filter(a => a.productId === p.id && !a.resolved && ['LOW', 'CRITICAL', 'OUT_OF_STOCK'].includes(a.alertLevel));
-        
+
         let shouldAlert = false;
 
         if (isAlertable) {
@@ -825,7 +859,10 @@ async function generateAlerts() {
 
             // Trigger Email
             if (auth.currentUser && auth.currentUser.email) {
-                sendAlertEmail(auth.currentUser.email, msg, p.productName, currentLevel);
+                const graphStr = generateStockGraph(products);
+                const recStr = getSmartRecommendation(p.productName, p.quantity);
+                const emailMessage = `Stock Remaining: ${p.quantity} units\n\n📊 Stock Trend:\n${graphStr}\n\n💡 Recommendation: ${recStr}`;
+                sendAlertEmail(auth.currentUser.email, emailMessage, p.productName, currentLevel);
             }
         }
 
@@ -849,7 +886,10 @@ async function generateAlerts() {
 
                 // Trigger Email
                 if (auth.currentUser && auth.currentUser.email) {
-                    sendAlertEmail(auth.currentUser.email, msg, p.productName, expInfo.status);
+                    const graphStr = generateStockGraph(products);
+                    const recStr = getSmartRecommendation(p.productName, p.quantity);
+                    const emailMessage = `${msg}\n\nStock Remaining: ${p.quantity} units\n\n📊 Stock Trend:\n${graphStr}\n\n💡 Recommendation: ${recStr}`;
+                    sendAlertEmail(auth.currentUser.email, emailMessage, p.productName, expInfo.status);
                 }
             }
         } else {
@@ -866,12 +906,12 @@ alertsFeed.addEventListener('click', async (e) => {
     if (e.target.classList.contains('btn-clear-alert')) {
         const alertId = e.target.getAttribute('data-id');
         try {
-            await updateDoc(getAlertDoc(alertId), { 
-                resolved: true, 
-                updatedAt: serverTimestamp() 
+            await updateDoc(getAlertDoc(alertId), {
+                resolved: true,
+                updatedAt: serverTimestamp()
             });
             showToast("Alert cleared");
-        } catch(err) {
+        } catch (err) {
             console.error("Error clearing alert:", err);
             showToast("Failed to clear alert", "error");
         }
@@ -889,15 +929,15 @@ function renderAlertsFeed() {
 
     activeAlerts.forEach(a => {
         const timeStr = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
-        
+
         let iconClass = 'ph-fill ph-warning';
         let cardClass = 'warning';
-        
-        if (a.alertLevel === 'CRITICAL' || a.alertLevel === 'OUT_OF_STOCK') { 
-            iconClass = 'ph-fill ph-warning-octagon'; 
-            cardClass = 'critical'; 
-        } else if (a.alertType === 'EXPIRY_WARNING') { 
-            iconClass = 'ph-fill ph-hourglass-high'; 
+
+        if (a.alertLevel === 'CRITICAL' || a.alertLevel === 'OUT_OF_STOCK') {
+            iconClass = 'ph-fill ph-warning-octagon';
+            cardClass = 'critical';
+        } else if (a.alertType === 'EXPIRY_WARNING') {
+            iconClass = 'ph-fill ph-hourglass-high';
         }
 
         alertsFeed.innerHTML += `
@@ -926,7 +966,7 @@ function renderSalesFeed() {
 
     recentSales.forEach(s => {
         const timeStr = s.soldAt && s.soldAt.toDate ? s.soldAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now';
-        
+
         let plString = '';
         if (s.profitLoss > 0) plString = `<span class="text-success">Profit ${formatINR(s.profitLoss)}</span>`;
         else if (s.profitLoss < 0) plString = `<span class="text-danger">Loss ${formatINR(Math.abs(s.profitLoss))}</span>`;
@@ -1081,13 +1121,13 @@ function renderAnalytics() {
     // Update Top Profitable and Loss Making lists
     const listProfitable = document.getElementById('list-profitable');
     const listLossMaking = document.getElementById('list-loss-making');
-    
+
     if (listProfitable && listLossMaking) {
         listProfitable.innerHTML = "";
         listLossMaking.innerHTML = "";
-        
+
         const allProdsByProfit = Object.keys(productProfitMap).sort((a, b) => productProfitMap[b] - productProfitMap[a]);
-        
+
         let hasProfitable = false;
         let hasLoss = false;
 
@@ -1136,7 +1176,7 @@ function renderCreditDashboard() {
 
             let isOverdue = false;
             let dueDateStr = credit.dueDate || '-';
-            
+
             if (credit.dueDate) {
                 const dueDate = new Date(credit.dueDate);
                 if (dueDate < today) {
@@ -1146,8 +1186,8 @@ function renderCreditDashboard() {
             }
 
             const saleDate = credit.soldAt && credit.soldAt.toDate ? credit.soldAt.toDate().toLocaleDateString() : '-';
-            const statusBadge = isOverdue 
-                ? `<span class="badge badge-critical">Overdue</span>` 
+            const statusBadge = isOverdue
+                ? `<span class="badge badge-critical">Overdue</span>`
                 : `<span class="badge badge-warning">Pending</span>`;
 
             creditTbody.innerHTML += `
@@ -1218,7 +1258,7 @@ function renderRestockRecommendations() {
     products.forEach(p => {
         const unitsSoldLast30Days = productVelocity[p.id] || 0;
         const dailyVelocity = unitsSoldLast30Days / 30;
-        
+
         let daysUntilStockout = 9999;
         if (dailyVelocity > 0) {
             daysUntilStockout = p.quantity / dailyVelocity;
